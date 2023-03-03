@@ -63,26 +63,31 @@ The aims is to produce a datase of full protocl ABAP card from eBird EBD dataset
 
 Checklists lost by filtering for valid pentad:
 
+Filtering: 
 - 12% lost by historical without distance.
-- 40% lost by complete.
-- 30% lost by pentad restriction.
+- 40% lost by incomplete list (not reporting all species).
+- ~30% lost by pentad restriction.
 - 40% lost without duration.
 
--> 17K checklists (23% of the 90K) kept after filter (most of the filtering percentage are ovelaping).
--> 10K checklists can be match to a valid card.
--> 3K cards.
+
+- 23K checklists (26% of the 90K) kept after this filter (most of the filtering percentage are ovelaping).
+- 13K checklists can be match to a valid card
+- 4.2K cards.
 
 
-## Needs to be done
+## Discussion
 
 - Duplicate observers: Not sure what is happening on the EBD. Something to check. 
 - Taxonomy matching: What do they want?  ADU number I suppose. Is there a match list for eBird at the global level (I have one for Kenya, but not for `ZA`)
 - `InclNight`: Check each checklist start and end time for being spanning over night. Threashold of duration covering night time.
 - `AllHabitats`: How to map? user input
-- Should `GLOBALUNIQUEIDENTIFIER` be kept? 
+- Should `GLOBALUNIQUEIDENTIFIER` be kept?
+- `Hour1` could be estimated by fitting a paramtric curve of 
+- Within pentad is currently estimated as (distance center of pentad to checklist location) + distance traveled < 1.2*half of pentad resolution. The 1.2 is to be able to keep more data while accepting checklists which were just at the border of a pentad. 
 
 ## What would improve/maximize the number of card
 
 - Use the track to determine pentad overlap
 - Let the user confirm that a checklit belong to a single pentad rather than a check based on distance
 - User input for `AllHabitats`.
+
