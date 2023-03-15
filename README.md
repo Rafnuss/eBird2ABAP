@@ -1,27 +1,30 @@
 # eBird to ABAP
 
-The aims is to produce a datase of full protocl ABAP card from eBird EBD dataset.
+The aims of this code is to produce a dataset of ABAP full protocol card equivalent from the eBird EBD dataset.
+
+The overview process is to find and combine eBird checklists that satisfy the full protocol requirements: same observers, within a pentad, at least 2hr of reporting all species spread over 5 days. 
+
 
 ## Process
 
-1. Construct the card list
+1. Construct a list of valid cards
    1. Group raw EBD data to checklist level information
-   2. Filter checklistd which contribute to a valid card
-      1. Only complete checklists
-      2. Within pentad
-         1. Exlclude traveling with distance greater than
-         2. Historical which don't have a distance
-      3. Duration greated than 0.
-      4. Protocol is: "Historical", "Incidental", "Stationary", "Traveling"
-   3. Group checklists by date (i.e.,checkday)
-   4. Loop over each group pentad-observer
-      1. Iterate through all checkday sorted by date `i`
-         1. Find the next checkday over the following 4 days `f`
-            1. If valid (ie., sum(duration over the following 4 days)>2hr). create the card (pentad_observer_date) and `i = i + f + 1`
-            2. If invalid, move to `i = i+1` check
-2. Add checklists to card
+   2. Filter checklists which could make a valid card
+      1. Keep only complete checklists
+      2. Keep only checklists with `Historical`, `Stationary`, `Traveling` protocol
+      3. Keep only checklists `within pentad`, that is,
+         1. Exclude checklists with `traveling` protocol with distance greater than the distance from center of checklist to closest pentad limit.
+         2. Exclude checklists with `historical` protocol that don't have a distance.
+      4. Keep only checklists with duration greated than 0.
+   3. Group checklists by date (named `checkday` later on)
+   4. Loop over each possible pentad-observer group
+      1. Iterate through all `checkday` sorted by date: `i`
+         1. Find all `checkday` over the following 4 days `f`
+            1. If valid (i.e., sum(duration over all `checkday`)>2hr), create the card (identified by `pentad_observer_date`) and set `i = i + f + 1`
+            2. If invalid, move to `i = i+1`
+2. Combine checklists into the valid cards
    1. Loop through all cards
-      1. Add checklists which are: (1) within pentad, (2) same observer and (3) day within the 5 day period. This list of checklists is different from the one used to construc the card list.
+      1. Add checklists which are: (1) within pentad, (2) same observer and (3) day within the 5 day period. This list of checklists is different from the one used to construct the list of valid card.
 3. Add species level information to cards
    1. Loop through each card
       1. Filter by checklists
@@ -58,7 +61,7 @@ The aims is to produce a datase of full protocl ABAP card from eBird EBD dataset
 ]
 ```
 
-## Key number
+## Summury of the process
 
 ### for Kenya
 
@@ -66,32 +69,37 @@ Checklists lost by filtering for valid pentad:
 
 - 12% lost by historical without distance.
 - 40% lost by incomplete list (not reporting all species).
-- ~30% lost by pentad restriction.
+- ~30% lost by within pentad restriction.
 - 40% lost without duration.
-- 23K checklists (26% of the 90K) kept after this filter (most of the filtering percentage are ovelaping).
-- 13K checklists can be match to a valid card
-- 4.2K cards.
+- 23K checklists (26% of the 90K) kept after this filtering (some of the checklists are filtered multiple time).
+- 13K checklists can be match to a valid card (i.e., sum or duration >2hr)
+- Process results in 4.2K cards.
 
 ### for South Africa
 
-- 33K checkelits matched to a valid card
+- 33K checklist matched to a valid card
 - 14K cards.
-
-4 min. (loop would be hours)
 
 ## Discussion
 
+General considerations:
+
 - Duplicate observers: Not sure what is happening on the EBD. Something to check.
-- Taxonomy matching: What do they want? ADU number I suppose. Is there a match list for eBird at the global level (I have one for Kenya, but not for `ZA`)
-- `InclNight`: Check each checklist start and end time for being spanning over night. Threashold of duration covering night time.
-- `AllHabitats`: How to map? user input
-- Should `GLOBALUNIQUEIDENTIFIER` be kept?
-- `Hour1` could be estimated by fitting a paramtric curve of.
+- Taxonomy matching: What species ID is required for the database? ADU number I suppose. Is there a match list for eBird at the global level (I have one for Kenya, but not for `ZA`)
 - Within pentad is currently estimated as (distance center of pentad to checklist location) + distance traveled < 1.2\*half of pentad resolution. The 1.2 is to be able to keep more data while accepting checklists which were just at the border of a pentad.
-- Longer step is the final looping for species, taking around 5min for Kenya. Should be able to improve that... We might hit into memory issue at some point... not sure.
+- Should `GLOBALUNIQUEIDENTIFIER` be kept?
+- Code written in MATLAB but allows to be fast (vectorial computation: 4 min.)
 
-## What would improve/maximize the number of card
+Missing information:
 
+- `InclNight`: Possible to check each checklist start and end time for being spanning over night. Threashold of duration covering night time. Complex for little value?
+- `AllHabitats`: Seems to be difficult to find something equivalent.
+- `Hour1` could be estimated by fitting a paramtric curve of. Complex for little value?
+
+What eBird/eBird user can do to improve/maximize the number of card?
+
+- Both protocol need user to do complete list (ant not add-hoc or incomplete).
+- Try to encourage birder to avoid using Historical (
 - Use the track to determine pentad overlap
 - Let the user confirm that a checklit belong to a single pentad rather than a check based on distance
 - User input for `AllHabitats`.
