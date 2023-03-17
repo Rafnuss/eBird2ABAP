@@ -4,6 +4,7 @@ The aims of this code is to produce a dataset of ABAP full protocol card equival
 
 The overview process is to find and combine eBird checklists that satisfy the full protocol requirements: same observers, within a pentad, at least 2hr of reporting all species spread over 5 days. 
 
+This process does not address "ad hoc" data (e.g., incomplete data in eBird); we should discuss how to support that as well if that is of interest to the ABAP.
 
 ## Process
 
