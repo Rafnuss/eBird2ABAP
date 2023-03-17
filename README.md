@@ -92,9 +92,9 @@ General considerations:
 
 Missing information:
 
-- `InclNight`: Possible to check each checklist start and end time for being spanning over night. Threashold of duration covering night time. Complex for little value?
-- `AllHabitats`: Seems to be difficult to find something equivalent.
-- `Hour1` could be estimated by fitting a paramtric curve of. Complex for little value?
+- `InclNight`
+- `AllHabitats`
+- `Hour1`
 
 What eBird/eBird user can do to improve/maximize the number of card?
 
