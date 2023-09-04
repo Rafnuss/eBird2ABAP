@@ -1,13 +1,17 @@
 
 [lat,lon] = borders("Kenya");
 
+coastline = load('coast');
+lat = coastline.lat;
+lon = coastline.long;
+
 
 %%
 res=5/60;
 
 %[X,Y] = meshgrid(34:res:42, -5:res:5);
 
-[X,Y] = meshgrid(34:res:42, -5:res:5);
+[X,Y] = meshgrid(-10:res:50, -30:res:30);
 
 X=X(:)'; Y=Y(:)';
 
@@ -46,6 +50,6 @@ geojson.type = 'FeatureCollection';
 geojson.features = features;
 
 % Save the GeoJSON file
-fid = fopen('kenya_pentad.geojson','w');
+fid = fopen('africa_pentad.geojson','w');
 fprintf(fid,'%s',jsonencode(geojson));
 fclose(fid);

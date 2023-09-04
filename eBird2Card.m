@@ -15,13 +15,24 @@ addpath("functions/")
 
 tic
 %% Set up the Import Options and import the data
-cntr = "ZA";
+cntr = "KE";
 ebd0 = readEBD("data/eBird/ebd_"+cntr+"_relAug-2022/ebd_"+cntr+"_relAug-2022.txt");
 toc
+
+%% Keep only species category
+% writetable(unique(ebd0(:,["COMMONNAME", "SCIENTIFICNAME", "CATEGORY"]),"rows"),"species_list_ebird.csv")
+
+% remove domestic chicken
+ebd0 = ebd0(ebd0.SCIENTIFICNAME~="Gallus gallus (Domestic type)",:);
+
+% Keep some spuh which can be match to an ADU
+spuh_keep = readtable("data/spuh_keep.csv","TextType","string");
+% Remove slash and spuh not recongnized
+ebd0 = ebd0((ebd0.CATEGORY~="spuh" & ebd0.CATEGORY~="slash") | ismember(ebd0.SCIENTIFICNAME,spuh_keep.Clements__scientific_name),:);
+
 %% Build checklist level
 ebd = groupsummary(ebd0,["SAMPLINGEVENTIDENTIFIER","LATITUDE","LONGITUDE","OBSERVATIONDATE", "TIMEOBSERVATIONSSTARTED","PROTOCOLTYPE","DURATIONMINUTES","EFFORTDISTANCEKM","ALLSPECIESREPORTED","OBSERVERID"]);
 ebd = sortrows(ebd,"OBSERVATIONDATE");
-
 
 %% Filter protocol
 ebd.KEEP_PROTOCOL = ismember(ebd.PROTOCOLTYPE, categorical(["Historical", "Incidental", "Stationary", "Traveling"]));
@@ -42,7 +53,7 @@ ebd.KEEP_PENTAD = ~(km2deg(ebd.EFFORTDISTANCEKM)+max(abs(lat-ebd.LATITUDE), abs(
 % mean(ebd.KEEP_PENTAD) % 66% -> 73% for 1.2 overlap
 
 % Also filter historical checklist which have no distance
-ebd.KEEP_PENTAD(ebd.PROTOCOLTYPE=="Historical" & isnan(ebd.EFFORTDISTANCEKM)) = false;
+ebd.KEEP_PENTAD(ebd.PROTOCOLTYPE == "Historical" & isnan(ebd.EFFORTDISTANCEKM)) = false;
 % mean(ebd.KEEP_PENTAD) 88%
 
 % mean(ebd.KEEP_PENTAD) 53% 60%
@@ -122,29 +133,41 @@ card = checkday(checkday.card == checkday.pentad_observer_date,["pentad", "obser
 
 ebd.OBSERVATIONDATE_num = datenum(ebd.OBSERVATIONDATE);
 ebd.card(:) = "";
-
-d = cell(height(card),1);
-
 ebd.OBSERVATIONDATETIME = datetime(string(ebd.OBSERVATIONDATE, "yyyy-MM-dd")  + " " + string(ebd.TIMEOBSERVATIONSSTARTED, "HH:mm:ss") );
 
+d = cell(height(card),1);
 for i_card = 1:height(card)
 
     id = ebd.KEEP_PENTAD & ebd.PENTAD == card.pentad(i_card) & ebd.OBSERVERID == card.observer(i_card) & ebd.OBSERVATIONDATE_num >= card.date(i_card) & ebd.OBSERVATIONDATE_num < card.date(i_card)+5;
     assert(all(ebd.card(id)==""))
     ebd.card(id) = card.card(i_card);
 
+    % Import format
+    d{i_card}.Protocol = "F";
+    d{i_card}.ObserverEmail = "kenyabirdmap@naturekenya.org";
     d{i_card}.CardNo = card.card(i_card);
     d{i_card}.StartDate = string(min(ebd.OBSERVATIONDATE(id)), "yyyy-MM-dd");
     d{i_card}.EndDate = string(max(ebd.OBSERVATIONDATE(id)), "yyyy-MM-dd");
     d{i_card}.StartTime = string(min(ebd.OBSERVATIONDATETIME(id)), "HH:mm");
     d{i_card}.Pentad = card.pentad(i_card);
-    d{i_card}.ObserverNo = card.observer(i_card);
+    d{i_card}.ObserverNo = "ebird";
     d{i_card}.TotalHours = nansum(ebd.DURATIONMINUTES(id))/60;
+    d{i_card}.Hour1 = "";
+    d{i_card}.Hour2 = "";
+    d{i_card}.Hour3 = "";
+    d{i_card}.Hour4 = "";
+    d{i_card}.Hour5 = "";
+    d{i_card}.Hour6 = "";
+    d{i_card}.Hour7 = "";
+    d{i_card}.Hour8 = "";
+    d{i_card}.Hour9 = "";
+    d{i_card}.Hour10 = "";
     d{i_card}.TotalSpp = 0;
-    d{i_card}.InclNight = 0;
-    d{i_card}.AllHabitats = 0;
+    d{i_card}.InclNight = "0";
+    d{i_card}.AllHabitats = "0";
     d{i_card}.Checklists = ebd.SAMPLINGEVENTIDENTIFIER(id);
     d{i_card}.TotalDistance = nansum(ebd.EFFORTDISTANCEKM(id));
+    d{i_card}.ObserverNoEbird = card.observer(i_card);
 end
 
 % sum(cellfun(@(x) numel(x.Checklists), d)) 13K 33K(ZA)
@@ -163,25 +186,56 @@ ebd0f = ebd0(ismember(ebd0.SAMPLINGEVENTIDENTIFIER, all_checklists),["SAMPLINGEV
 %     d{i_card}.TotalSpp = numel(d{i_card}.Species);
 % end
 
-% Get the operation vectorize
+% Add ADU number
+species_match = readtable("data/species_match.csv","TextType","string");
+species_match = species_match( ~isnan(species_match.ADU) & ~ismissing(species_match.Clements__scientific_name),["ADU","Clements__scientific_name"]);
+
+% Add missing species
+species_match = [species_match; spuh_keep;
+    table([10958, 941, 10046 456]',...
+    ["Emberiza goslingi", "Psittacula krameri" "Zosterops eurycricotus" "Mirafra cheniana"]',...
+    VariableNames=["ADU", "Clements__scientific_name"])];
+
+% Check that all entry are matching
+unique(ebd0f.SCIENTIFICNAME(~ismember(ebd0f.SCIENTIFICNAME, species_match.Clements__scientific_name)))
+
+% Add ADU number
+ebd0f = join(ebd0f, species_match, LeftKeys="SCIENTIFICNAME", RightKeys="Clements__scientific_name");
+% any(isnan(ebd0f2.ADU))
+
+% Get species list per card vectorize
 tmp2 = cellfun(@(x) numel(x.Checklists), d);
 tmp3 = repelem((1:numel(tmp2))',tmp2);
 [~, id] = ismember(ebd0f.SAMPLINGEVENTIDENTIFIER, all_checklists);
 tmp4 = tmp3(id);
-sp_list = splitapply(@(x) {unique(x)},ebd0f.SCIENTIFICNAME, tmp4);
+sp_list = splitapply(@(x) {unique(x)},ebd0f.ADU, tmp4);
+
+% Add to card
 for i_card = 1:height(card)
     d{i_card}.Species = sp_list{i_card};
     d{i_card}.TotalSpp = numel(sp_list{i_card});
 end
 
+%% Minor check and filter
+% d{cellfun(@(x) x.TotalSpp<3, d)}
 
-fid = fopen("export/"+cntr+"_data.json",'w');
+
+%% Export/Save
+
+fname = "export/"+cntr+"_data";
+
+save(fname+".mat", "d")
+
+fid = fopen(fname + ".json",'w');
 fprintf(fid,'%s',jsonencode(d));
 fclose(fid);
+
+
 toc
-return
+
 %%
-observer = groupsummary(table(cellfun(@(x) x.ObserverNo, d)), "Var1");
+
+observer = groupsummary(table(cellfun(@(x) x.ObserverNoEbird, d)), "Var1");
 observer = sortrows(observer,"GroupCount");
 
 figure; histogram(cellfun(@(x) x.TotalHours, d)); xlabel("TotalHours")
@@ -192,4 +246,3 @@ figure; histogram(groupcounts(cellfun(@(x) x.Pentad, d))); xlabel("Pentad")
 
 [~,id]=sort(cellfun(@(x) numel(x.Checklists), d),"descend");
 d{id(1)}.Checklists
-
