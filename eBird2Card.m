@@ -208,11 +208,22 @@ tmp2 = cellfun(@(x) numel(x.Checklists), d);
 tmp3 = repelem((1:numel(tmp2))',tmp2);
 [~, id] = ismember(ebd0f.SAMPLINGEVENTIDENTIFIER, all_checklists);
 tmp4 = tmp3(id);
-sp_list = splitapply(@(x) {unique(x)},ebd0f.ADU, tmp4);
+sp_list = splitapply(@(x) {unique(x)}, ebd0f.ADU, tmp4);
 
 % Add to card
 for i_card = 1:height(card)
-    d{i_card}.Species = sp_list{i_card};
+    d{i_card}.records = cell(numel(sp_list{i_card}),1);
+    
+    for i_sp = 1:numel(sp_list{i_card})
+        d{i_card}.records{i_sp}.Sequence = i_sp;
+        d{i_card}.records{i_sp}.Latitude = "";
+        d{i_card}.records{i_sp}.Longitude = "";
+        d{i_card}.records{i_sp}.Altitude = "";
+        d{i_card}.records{i_sp}.CardNo = d{i_card}.CardNo;
+        d{i_card}.records{i_sp}.Spp = sp_list{i_card}(i_sp);
+        d{i_card}.records{i_sp}.Accuracy = "";
+        d{i_card}.records{i_sp}.SightingTime = "";
+    end
     d{i_card}.TotalSpp = numel(sp_list{i_card});
 end
 

@@ -35,18 +35,18 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 
 ### Card level
 
-|                   | **Example**                 | **eBird EBD**                  | **Comments**                                                                                                         |
-| ----------------- | --------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| **Protocol**      | "F"                         | "F"                            | Only full card are considered in this conversion process                                                             |
-| **ObserverEmail** | "ipanshak@gmail.com"        | "kenyabirdmap@naturekenya.org" | Not sure how this email is used. It would need to be a permanant email to use. Not sure which one, probably not mine |
-| **CardNo**        | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_  | build from Prend, ObserverNo and start date.                                                                         |
+|                   | **Example**                 | **eBird EBD**                  | **Comments**                                                       |
+| ----------------- | --------------------------- | ------------------------------ | ------------------------------------------------------------------ |
+| **Protocol**      | "F"                         | "F"                            | Only full card are considered in this conversion process           |
+| **ObserverEmail** | "ipanshak@gmail.com"        | "kenyabirdmap@naturekenya.org" | Using KBM email adress for now                                     |
+| **CardNo**        | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_  | build from Prend, ObserverNo and start date.                       |
 | **StartDate**     | "2023-08-14"                | min(OBSERVATIONDATE)           |
 | **EndDate**       | "2023-08-17"                | max(OBSERVATIONDATE)           |
 | **StartTime**     | "06:43"                     | min(OBSERVATIONDATETIME)       |
 | **Pentad**        | "0910c0725"                 | card_pentad                    |
-| **ObserverNo**    | "050642"                    | "eBird"                        | eBird has also a unique ID for user. Can we use this one? observer                                                   |
-| **TotalHours**    | "1:57"                      | sum(DURATIONMINUTES)           | sum of the durations of all checklists                                                                               |
-| **Hour1**         | 14                          | ""                             | We don't record sequence in eBird                                                                                    |
+| **ObserverNo**    | "050642"                    | "eBird"                        | eBird has also a unique ID for user. Can we use this one? observer |
+| **TotalHours**    | "1:57"                      | sum(DURATIONMINUTES)           | sum of the durations of all checklists                             |
+| **Hour1**         | 14                          | ""                             | We don't record sequence in eBird                                  |
 | **Hour2**         | 23                          | ""                             |
 | **Hour3**         | 0                           | ""                             |
 | **Hour4**         | 0                           | ""                             |
@@ -57,24 +57,24 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 | **Hour9**         | 0                           | ""                             |
 | **Hour10**        | 0                           | ""                             |
 | **TotalSpp**      | 23                          | length(sp_list)                |
-| **InclNight**     | "0"                         | "0"                            | This conversion tool does not adress the issue of nocturnal                                                          |
-| **AllHabitats**   | "0"                         | "0"                            | This conversion tool does not quantify the use of all habitat.                                                       |
-|                   |                             | Checklists                     | List of checklists used                                                                                              |
-|                   |                             | TotalDistance                  | sum of distances of all checklists                                                                                   |
-|                   |                             | ObserverNoEbird                | observer ID from eBird                                                                                               |
+| **InclNight**     | "0"                         | "0"                            | This conversion tool does not adress the issue of nocturnal        |
+| **AllHabitats**   | "0"                         | "0"                            | This conversion tool does not quantify the use of all habitat.     |
+|                   |                             | Checklists                     | List of checklists used                                            |
+|                   |                             | TotalDistance                  | sum of distances of all checklists                                 |
+|                   |                             | ObserverNoEbird                | observer ID from eBird                                             |
 
 ### Record level
 
-|                  | **Example**                 | **eBird EBD**                 | **Comments**                                     |
-| ---------------- | --------------------------- | ----------------------------- | ------------------------------------------------ |
-| **Sequence**     | 1                           | _i_                           | Not recorded in eBird, use the taxonomical order |
-| **Latitude**     | 9.0910404                   | ""                            | Not recorded                                     |
-| **Longitude**    | 7.4309485                   | ""                            | Not recorded                                     |
-| **Altitude**     | 469.8                       | ""                            | Not recorded                                     |
-| **CardNo**       | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_ |
-| **Spp**          | 314                         |                               |
-| **Accuracy**     | 35.340999603271             | ""                            | Not recorded                                     |
-| **SightingTime** | "2023-08-15T05:36:33.834Z"  | OBSERVATIONDATE(i)            | Use the checklist of the first occurance         |
+|                  | **Example**                 | **eBird EBD**                 | **Comments**                                                                |
+| ---------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
+| **Sequence**     | 1                           | _i_                           | Not recorded in eBird, use the taxonomical order                            |
+| **Latitude**     | 9.0910404                   | ""                            | Not recorded                                                                |
+| **Longitude**    | 7.4309485                   | ""                            | Not recorded                                                                |
+| **Altitude**     | 469.8                       | ""                            | Not recorded                                                                |
+| **CardNo**       | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_ | Same as the card to which the record belong to                              |
+| **Spp**          | 314                         |                               | ADU number match based on <https://github.com/A-Rocha-Kenya/Birds-of-Kenya> |
+| **Accuracy**     | 35.340999603271             | ""                            | Not recorded                                                                |
+| **SightingTime** | "2023-08-15T05:36:33.834Z"  | ""                            | Use the checklist of the first occurance                                    |
 
 ## Sample ouput
 
@@ -106,20 +106,18 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
         "Checklists": "S34208535",
         "TotalDistance": 2,
         "ObserverNoEbird": "obsr96453",
-        "Species": [
-            316,
-            319,
-            387,
-            393,
-            413,
-            423,
-            438,
-            551,
-            558,
-            579,
-            627,
-            725,
-            766
+        "records": [
+            {
+                "Sequence": 1,
+                "Latitude": "",
+                "Longitude": "",
+                "Altitude": "",
+                "CardNo": "0315_4000_obsr96453_19730717",
+                "Spp": 316,
+                "Accuracy": "",
+                "SightingTime": ""
+            },
+            ...
         ]
     },
     ...
