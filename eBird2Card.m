@@ -231,18 +231,42 @@ end
 % d{cellfun(@(x) x.TotalSpp<3, d)}
 
 
+
 %% Export/Save
 
 fname = "export/"+cntr+"_data";
 
-save(fname+".mat", "d")
-
+% json
 fid = fopen(fname + ".json",'w');
 fprintf(fid,'%s',jsonencode(d));
 fclose(fid);
 
+%% Export to csv
+% Convert the structure array to a table
+% Convert the structure array to a table
+T = struct2table(vertcat(d{:}));
+T = T(tmp4,:);
+T.Spp = ebd0f.ADU;
+T.Sequence(:) = 0;
+T.ObserverName = T.ObserverNoEbird;
 
-toc
+sp_kbm = readtable("data/kbm/sp_kbm.xlsx", TextType="string");  
+
+% T2 = join(T, sp_kbm, LeftKeys = "Spp", RightKeys = "Ref");
+T.Common_group(:) = "";
+T.Common_species(:) = "";
+T.Genus(:) = "";
+T.Species(:) = "";
+
+% id = ismember(T.Spp, sp_kbm.Ref);
+
+Tout = T(:, ["CardNo" "StartDate" "EndDate" "StartTime" "Pentad" "ObserverNo" "ObserverName" "TotalHours" ...
+    "Hour1" "Hour2" "Hour3" "Hour4" "Hour5" "Hour6" "Hour7" "Hour8" "Hour9" "Hour10" ...
+    "TotalSpp" "InclNight" "AllHabitats" "Spp" "Common_group" "Common_species" "Genus" "Species" "Sequence" "TotalDistance" "Checklists"]);
+
+writetable(Tout, "export/eBird_fullcard_ "+string(datetime("now", format ="yyyyMMdd"))+".csv")
+
+
 
 %%
 
