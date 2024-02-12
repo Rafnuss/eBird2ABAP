@@ -15,9 +15,11 @@ addpath("functions/")
 
 tic
 %% Set up the Import Options and import the data
-cntr = "KE";
+cntr = "ZA";
 ebd0 = readEBD("data/eBird/ebd_"+cntr+"_relAug-2022/ebd_"+cntr+"_relAug-2022.txt");
 toc
+% sort by date: possibly needed for sequence
+ebd0 = sortrows(ebd0,"OBSERVATIONDATE");
 
 %% Keep only species category
 % writetable(unique(ebd0(:,["COMMONNAME", "SCIENTIFICNAME", "CATEGORY"]),"rows"),"species_list_ebird.csv")
@@ -84,7 +86,7 @@ checkday = sortrows(checkday,"date");
 
 %
 checkday.pentad_observer = checkday.pentad + "_" + checkday.observer;
-checkday.pentad_observer_date = checkday.pentad + "_" + checkday.observer + "_" + string(datetime(checkday.date, "ConvertFrom","datenum"),"yyyyMMdd");
+checkday.pentad_observer_date = checkday.pentad + "_" + extractAfter(checkday.observer,4) + "_" + string(datetime(checkday.date, "ConvertFrom","datenum"),"yyyyMMdd");
 
 % extract the unique pentand_observer combo
 unique_pentad_observer = unique(checkday.pentad_observer);
@@ -129,7 +131,7 @@ end
 card = checkday(checkday.card == checkday.pentad_observer_date,["pentad", "observer", "date", "card"]);
 % card.date = datetime(card.date, "ConvertFrom","datenum");
 % height(card) 4269
-%%
+%% Create Card
 
 ebd.OBSERVATIONDATE_num = datenum(ebd.OBSERVATIONDATE);
 ebd.card(:) = "";
@@ -150,7 +152,7 @@ for i_card = 1:height(card)
     d{i_card}.EndDate = string(max(ebd.OBSERVATIONDATE(id)), "yyyy-MM-dd");
     d{i_card}.StartTime = string(min(ebd.OBSERVATIONDATETIME(id)), "HH:mm");
     d{i_card}.Pentad = card.pentad(i_card);
-    d{i_card}.ObserverNo = "ebird";
+    d{i_card}.ObserverNo = "22829";
     d{i_card}.TotalHours = nansum(ebd.DURATIONMINUTES(id))/60;
     d{i_card}.Hour1 = "";
     d{i_card}.Hour2 = "";
@@ -203,19 +205,33 @@ unique(ebd0f.SCIENTIFICNAME(~ismember(ebd0f.SCIENTIFICNAME, species_match.Clemen
 ebd0f = join(ebd0f, species_match, LeftKeys="SCIENTIFICNAME", RightKeys="Clements__scientific_name");
 % any(isnan(ebd0f2.ADU))
 
-% Get species list per card vectorize
+% Get card_id for each observation
 tmp2 = cellfun(@(x) numel(x.Checklists), d);
 tmp3 = repelem((1:numel(tmp2))',tmp2);
 [~, id] = ismember(ebd0f.SAMPLINGEVENTIDENTIFIER, all_checklists);
-tmp4 = tmp3(id);
-sp_list = splitapply(@(x) {unique(x)}, ebd0f.ADU, tmp4);
+ebd0f.card_id = tmp3(id);
+
+% Extract the species list per card as a cell for vectorized computation
+sp_list = splitapply(@(x) {unique(x, "stable")}, ebd0f.ADU, ebd0f.card_id);
+
+
+% Sequence of checklist
+% Find the sequence of the checklist
+[~, id] = ismember(ebd0f.SAMPLINGEVENTIDENTIFIER, unique(ebd0f.SAMPLINGEVENTIDENTIFIER, 'stable'));
+ebd0f.checklist_seq = id;
+% Find the first checklist for each species of each card
+ebd0fG = groupsummary(ebd0f, ["card_id", "ADU"], "min", "checklist_seq");
+
+sp_list_seq = splitapply(@(x) {x}, ebd0fG.min_checklist_seq, ebd0fG.card_id);
 
 % Add to card
 for i_card = 1:height(card)
     d{i_card}.records = cell(numel(sp_list{i_card}),1);
-    
+
+    [C,ia,ic] = unique(sp_list_seq{i_card});
+
     for i_sp = 1:numel(sp_list{i_card})
-        d{i_card}.records{i_sp}.Sequence = i_sp;
+        d{i_card}.records{i_sp}.Sequence = ic(i_sp);
         d{i_card}.records{i_sp}.Latitude = "";
         d{i_card}.records{i_sp}.Longitude = "";
         d{i_card}.records{i_sp}.Altitude = "";
@@ -280,4 +296,14 @@ figure; histogram(groupcounts()); xlabel("ObserverNo")
 figure; histogram(groupcounts(cellfun(@(x) x.Pentad, d))); xlabel("Pentad")
 
 [~,id]=sort(cellfun(@(x) numel(x.Checklists), d),"descend");
+d{id(end)}.Checklists
+
+[~,id]=sort(cellfun(@(x) x.TotalSpp, d));
 d{id(1)}.Checklists
+
+
+
+
+ebd0f(ebd0f.SAMPLINGEVENTIDENTIFIER=="S46450134",:)
+
+find(card.card=="0050_3615_1055177_19870104")
