@@ -15,7 +15,7 @@ addpath("functions/")
 
 tic
 %% Set up the Import Options and import the data
-cntr = "ZA";
+cntr = "KE";
 ebd0 = readEBD("data/eBird/ebd_"+cntr+"_relAug-2022/ebd_"+cntr+"_relAug-2022.txt");
 toc
 % sort by date: possibly needed for sequence
@@ -74,7 +74,7 @@ ebd.KEEP_PENTAD(ebd.PROTOCOLTYPE == "Historical" & isnan(ebd.EFFORTDISTANCEKM)) 
 id = ebd.KEEP_PENTAD & ebd.KEEP_PROTOCOL & ebd.DURATIONMINUTES>0 & ebd.ALLSPECIESREPORTED;
 % mean(ebd.KEEP_PROTOCOL) %55%;
 % sum(id) 23%
-check = table(ebd.PENTAD(id), ebd.OBSERVERID(id), datenum(ebd.OBSERVATIONDATE(id)), ebd.DURATIONMINUTES(id)/60,...
+check = table(ebd.PENTAD(id), ebd.OBSERVERID(id), datenum(ebd.OBSERVATIONDATE(id)), ebd.DURATIONMINUTES(id),...
     variableName=["pentad", "observer", "date", "duration"]);
 
 % Combine checklists made by the same observer, pentand and day.
@@ -111,11 +111,11 @@ for i=1:numel(unique_pentad_observer)
         % limits, starting at the current checklist u. Should be at least
         nb_neighbor = sum(di(u,u:end));
         % use the index of these neighbors
-        neigh =  u+(0:(nb_neighbor-1));
+        neigh =  u:(u+nb_neighbor-1);
         % Computing the duration of all the checklists within the 5 day
         % periods
         dur = checkday.sum_duration(pentad_observer(neigh));
-        if sum(dur)>=2
+        if sum(dur)>=(2*60)
             % Valid/full card
             % Assign the index of first checklist of the card to all the
             % checklist
@@ -135,7 +135,9 @@ card = checkday(checkday.card == checkday.pentad_observer_date,["pentad", "obser
 
 ebd.OBSERVATIONDATE_num = datenum(ebd.OBSERVATIONDATE);
 ebd.card(:) = "";
-ebd.OBSERVATIONDATETIME = datetime(string(ebd.OBSERVATIONDATE, "yyyy-MM-dd")  + " " + string(ebd.TIMEOBSERVATIONSSTARTED, "HH:mm:ss") );
+tmp = string(ebd.TIMEOBSERVATIONSSTARTED, "HH:mm:ss");
+tmp(ismissing(tmp)) = "00:00:00";
+ebd.OBSERVATIONDATETIME = datetime(string(ebd.OBSERVATIONDATE, "yyyy-MM-dd")  + " " +  tmp, InputFormat='yyyy-MM-dd HH:mm:ss');
 
 d = cell(height(card),1);
 for i_card = 1:height(card)
@@ -213,7 +215,6 @@ ebd0f.card_id = tmp3(id);
 
 % Extract the species list per card as a cell for vectorized computation
 sp_list = splitapply(@(x) {unique(x, "stable")}, ebd0f.ADU, ebd0f.card_id);
-
 
 % Sequence of checklist
 % Find the sequence of the checklist
@@ -298,7 +299,8 @@ figure; histogram(groupcounts(cellfun(@(x) x.Pentad, d))); xlabel("Pentad")
 [~,id]=sort(cellfun(@(x) numel(x.Checklists), d),"descend");
 d{id(end)}.Checklists
 
-[~,id]=sort(cellfun(@(x) x.TotalSpp, d));
+tmp = cellfun(@(x) x.TotalSpp, d);
+[~,id]=sort(tmp);
 d{id(1)}.Checklists
 
 

@@ -35,39 +35,39 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 
 ### Card level
 
-|                   | **Example**                 | **eBird EBD**                  | **Comments**                                                       |
-| ----------------- | --------------------------- | ------------------------------ | ------------------------------------------------------------------ |
-| **Protocol**      | "F"                         | "F"                            | Only full card are considered in this conversion process           |
-| **ObserverEmail** | "ipanshak@gmail.com"        | "kenyabirdmap@naturekenya.org" | Using KBM email adress for now                                     |
-| **CardNo**        | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_  | build from Prend, ObserverNo and start date.                       |
-| **StartDate**     | "2023-08-14"                | min(OBSERVATIONDATE)           |
-| **EndDate**       | "2023-08-17"                | max(OBSERVATIONDATE)           |
-| **StartTime**     | "06:43"                     | min(OBSERVATIONDATETIME)       |
-| **Pentad**        | "0910c0725"                 | card_pentad                    |
-| **ObserverNo**    | "050642"                    | "eBird"                        | eBird has also a unique ID for user. Can we use this one? observer |
-| **TotalHours**    | "1:57"                      | sum(DURATIONMINUTES)           | sum of the durations of all checklists                             |
-| **Hour1**         | 14                          | ""                             | We don't record sequence in eBird                                  |
-| **Hour2**         | 23                          | ""                             |
-| **Hour3**         | 0                           | ""                             |
-| **Hour4**         | 0                           | ""                             |
-| **Hour5**         | 0                           | ""                             |
-| **Hour6**         | 0                           | ""                             |
-| **Hour7**         | 0                           | ""                             |
-| **Hour8**         | 0                           | ""                             |
-| **Hour9**         | 0                           | ""                             |
-| **Hour10**        | 0                           | ""                             |
-| **TotalSpp**      | 23                          | length(sp_list)                |
-| **InclNight**     | "0"                         | "0"                            | This conversion tool does not adress the issue of nocturnal        |
-| **AllHabitats**   | "0"                         | "0"                            | This conversion tool does not quantify the use of all habitat.     |
-|                   |                             | Checklists                     | List of checklists used                                            |
-|                   |                             | TotalDistance                  | sum of distances of all checklists                                 |
-|                   |                             | ObserverNoEbird                | observer ID from eBird                                             |
+|                   | **Example**                 | **eBird EBD**                  | **Comments**                                                   |
+| ----------------- | --------------------------- | ------------------------------ | -------------------------------------------------------------- |
+| **Protocol**      | "F"                         | "F"                            | Only full card are considered in this conversion process       |
+| **ObserverEmail** | "ipanshak@gmail.com"        | "kenyabirdmap@naturekenya.org" | Using KBM email adress for now                                 |
+| **CardNo**        | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_  | build from Prend, ObserverNo and start date.                   |
+| **StartDate**     | "2023-08-14"                | min(OBSERVATIONDATE)           |                                                                |
+| **EndDate**       | "2023-08-17"                | max(OBSERVATIONDATE)           |                                                                |
+| **StartTime**     | "06:43"                     | min(OBSERVATIONDATETIME)       |                                                                |
+| **Pentad**        | "0910c0725"                 | card_pentad                    |                                                                |
+| **ObserverNo**    | "050642"                    | "22829"                        | eBird account number is 22829 on ABAP.                         |
+| **TotalHours**    | "1:57"                      | sum(DURATIONMINUTES)           | sum of the durations of all checklists                         |
+| **Hour1**         | 14                          | ""                             | We don't record sequence in eBird                              |
+| **Hour2**         | 23                          | ""                             |                                                                |
+| **Hour3**         | 0                           | ""                             |                                                                |
+| **Hour4**         | 0                           | ""                             |                                                                |
+| **Hour5**         | 0                           | ""                             |                                                                |
+| **Hour6**         | 0                           | ""                             |                                                                |
+| **Hour7**         | 0                           | ""                             |                                                                |
+| **Hour8**         | 0                           | ""                             |                                                                |
+| **Hour9**         | 0                           | ""                             |                                                                |
+| **Hour10**        | 0                           | ""                             |                                                                |
+| **TotalSpp**      | 23                          | length(sp_list)                |                                                                |
+| **InclNight**     | "0"                         | "0"                            | This conversion tool does not adress the issue of nocturnal    |
+| **AllHabitats**   | "0"                         | "0"                            | This conversion tool does not quantify the use of all habitat. |
+|                   |                             | Checklists                     | List of checklists used                                        |
+|                   |                             | TotalDistance                  | sum of distances of all checklists                             |
+|                   |                             | ObserverNoEbird                | observer ID from eBird                                         |
 
 ### Record level
 
 |                  | **Example**                 | **eBird EBD**                 | **Comments**                                                                |
 | ---------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| **Sequence**     | 1                           | _i_                           | Not recorded in eBird, use the taxonomical order                            |
+| **Sequence**     | 1                           | _i_                           | Use pseudo-sequence determined by order of checklist                        |
 | **Latitude**     | 9.0910404                   | ""                            | Not recorded                                                                |
 | **Longitude**    | 7.4309485                   | ""                            | Not recorded                                                                |
 | **Altitude**     | 469.8                       | ""                            | Not recorded                                                                |

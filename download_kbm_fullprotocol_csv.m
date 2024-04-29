@@ -1,22 +1,31 @@
 
-% Download the data for all species in geojson
+%% Download the data for all species in geojson
 
-sp_kbm = readtable("data/kbm/sp_kbm.xlsx", 'TextType', 'string');
+data_txt = webread("https://api.birdmap.africa/sabap2/v2/coverage/country/kenya", weboptions(Timeout=5*60));
+data = jsondecode(data_txt).data;
+
+sp_list = cellfun(@(x) string(x),  {data.species.Ref}');
 
 
-opts = weboptions("Timeout",60);
-for i_sp=501:height(sp_kbm)
-    filename = "data/kbm/csv/"+sp_kbm.Ref(i_sp)+".csv";
-    if ~isnan(sp_kbm.Ref(i_sp)) % && ~exist(filename,'file')
-        sp_kbm.Ref(i_sp)
-        websave(filename,"https://api.birdmap.africa/sabap2/v2/R/2007-07-01/2025-01-01/country/kenya/data/species/"+sp_kbm.Ref(i_sp)+"?format=CSV",opts)
+% sp_kbm = readtable("data/kbm/sp_kbm.xlsx", 'TextType', 'string');
+% sp_list = sp_kbm.Ref;
+
+%% Download the files
+
+% Define the directory where to dowlnoad the files
+dir_path = 'data/kbm/csv/';
+
+for i_sp=1:numel(sp_list)
+    filename =dir_path + sp_list(i_sp)+".csv";
+    if sp_list(i_sp) ~="0" %% && ~exist(filename,'file')
+        sp_list(i_sp)
+        websave(filename,"https://api.birdmap.africa/sabap2/v2/R/2000-07-01/2025-01-01/country/kenya/data/species/"+sp_list(i_sp)+"?format=CSV", weboptions("Timeout",60))
         pause(5)
     end
 end
 
 
-% Define the directory where your files are
-dir_path = 'data/kbm/csv/';
+%% Combine files together
 
 % Get list of all csv files in the directory
 file_list = dir(fullfile(dir_path, '*.csv')); 
@@ -41,4 +50,4 @@ end
 merged_data = vertcat(data_cell{cellfun(@height,data_cell)>1});
 
 % Write the merged data to a new csv file
-writetable(merged_data, fullfile(dir_path, 'merged.csv'));
+writetable(merged_data,'data/kbm/all.csv');
