@@ -8,28 +8,29 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 
 ## Process
 
-1. Construct a list of valid cards
-   1. Group raw EBD data to checklist level information
+1. Construct the list of valid cards
+   1. Group raw EBD data to checklist level information (merge shared checklist)
    2. Filter checklists which could make a valid card
       1. Keep only complete checklists
-      2. Keep only checklists with `Historical`, `Stationary`, `Traveling` protocol
-      3. Keep only checklists `within pentad`, that is,
-         1. Exclude checklists with `traveling` protocol with distance greater than the distance from center of checklist to closest pentad limit.
-         2. Exclude checklists with `historical` protocol that don't have a distance.
+      2. Keep only checklists with `Historical`, `Stationary`, `Traveling`, `Incidental` protocol
+      3. Keep only checklists within the pentad, that is,
+         1. Exclude checklists with `historical` protocol that don't have a distance.
+         2. Exclude checklists with distance greater than the distance from center of checklist to closest pentad limit (accept some overlap with a correction factor).
       4. Keep only checklists with duration greated than 0.
    3. Group checklists by date (named `checkday` later on)
-   4. Loop over each possible pentad-observer group
-      1. Iterate through all `checkday` sorted by date: `i`
-         1. Find all `checkday` over the following 4 days `f`
-            1. If valid (i.e., sum(duration over all `checkday`)>2hr), create the card (identified by `pentad_observer_date`) and set `i = i + f + 1`
-            2. If invalid, move to `i = i+1`
-2. Combine checklists into the valid cards
-   1. Loop through all cards
-      1. Add checklists which are: (1) within pentad, (2) same observer and (3) day within the 5 day period. This list of checklists is different from the one used to construct the list of valid card.
+   4. Group checklists into pentad_observer group so that we only have to loop through the date to find valid card
+   5. Preliminary filter to eliminate all pentad_observer for which the sum over the entire period does not lead to 2h
+   6. For each remaining pentad_observer, apply the function `checkday_pentad_observer()`, which,
+      1. Compute the temporal distance between all checkday and check if they are within 5 days.
+      2. Loop through all checkday,
+         1. Compute the total duration of all checkdays within temporal distance
+            1. If valid, create the card_id and apply it to all checkday. Iterate to the first next checkday that was not within temporal distance
+            2. If invalid, iterate to the next checkday
+2. Create the card data
+   1. For each valid card, aggregate all checklists which are (1) within pentad, (2) same observer and (3) day within the 5 day period. This include more checklists than used to construct the list of valid cards
 3. Add species level information to cards
-   1. Loop through each card
-      1. Filter by checklists
-      2. Compute species level information.
+   1. Add sequence information based on first occurance on checklist.
+4. Export in JSON
 
 ## Matching entry
 
@@ -68,89 +69,66 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 |                  | **Example**                 | **eBird EBD**                 | **Comments**                                                                |
 | ---------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
 | **Sequence**     | 1                           | _i_                           | Use pseudo-sequence determined by order of checklist                        |
-| **Latitude**     | 9.0910404                   | ""                            | Not recorded                                                                |
-| **Longitude**    | 7.4309485                   | ""                            | Not recorded                                                                |
+| **Latitude**     | 9.0910404                   | checklist_latitude            | Not recorded                                                                |
+| **Longitude**    | 7.4309485                   | checklist_longitude           | Not recorded                                                                |
 | **Altitude**     | 469.8                       | ""                            | Not recorded                                                                |
 | **CardNo**       | "0910c0725_050642_20230815" | _Pentad_ObserverNo_StartDate_ | Same as the card to which the record belong to                              |
-| **Spp**          | 314                         |                               | ADU number match based on <https://github.com/A-Rocha-Kenya/Birds-of-Kenya> |
+| **Spp**          | 314                         | ADU                           | ADU number match based on <https://github.com/A-Rocha-Kenya/Birds-of-Kenya> |
 | **Accuracy**     | 35.340999603271             | ""                            | Not recorded                                                                |
-| **SightingTime** | "2023-08-15T05:36:33.834Z"  | ""                            | Use the checklist of the first occurance                                    |
+| **SightingTime** | "2023-08-15T05:36:33.834Z"  | checklist_start               | Use the checklist of the first occurance                                    |
 
 ## Sample ouput
 
 ```{js}
 [
-    {
-        "Protocol": "F",
-        "ObserverEmail": "kenyabirdmap@naturekenya.org",
-        "CardNo": "0315_4000_obsr96453_19730717",
-        "StartDate": "1973-07-17",
-        "EndDate": "1973-07-17",
-        "StartTime": "12:00",
-        "Pentad": "0315_4000",
-        "ObserverNo": "ebird",
-        "TotalHours": 4,
-        "Hour1": "",
-        "Hour2": "",
-        "Hour3": "",
-        "Hour4": "",
-        "Hour5": "",
-        "Hour6": "",
-        "Hour7": "",
-        "Hour8": "",
-        "Hour9": "",
-        "Hour10": "",
-        "TotalSpp": 13,
-        "InclNight": "0",
-        "AllHabitats": "0",
-        "Checklists": "S34208535",
-        "TotalDistance": 2,
-        "ObserverNoEbird": "obsr96453",
-        "records": [
-            {
-                "Sequence": 1,
-                "Latitude": "",
-                "Longitude": "",
-                "Altitude": "",
-                "CardNo": "0315_4000_obsr96453_19730717",
-                "Spp": 316,
-                "Accuracy": "",
-                "SightingTime": ""
-            },
-            ...
-        ]
-    },
-    ...
+   {
+      "Protocol":"F",
+      "ObserverEmail":"kenyabirdmap@naturekenya.org",
+      "CardNo":"0500b0220_r1034990_20180213",
+      "StartDate":"2018-02-13",
+      "EndDate":"2018-02-15",
+      "StartTime":"15:08",
+      "Pentad":"0500b0220",
+      "ObserverNo":"22829",
+      "TotalHours":2.0,
+      "Hour1":"",
+      "Hour2":"",
+      "Hour3":"",
+      "Hour4":"",
+      "Hour5":"",
+      "Hour6":"",
+      "Hour7":"",
+      "Hour8":"",
+      "Hour9":"",
+      "Hour10":"",
+      "TotalSpp":38,
+      "InclNight":"0",
+      "AllHabitats":"0",
+      "Checklists":[
+         "S43361123",
+         "S43361118"
+      ],
+      "TotalDistance":0.0,
+      "ObserverNoEbird":"obsr1034990",
+      "records":[
+         {
+         "Sequence":1,
+         "Latitude":4.9640506,
+         "Longitude":-2.40952,
+         "Altitude":"",
+         "CardNo":"0500b0220_r1034990_20180213",
+         "Spp":1338.0,
+         "Accuracy":"",
+         "SightingTime":"2018-02-13T15:08:00Z"
+         },
+         ...
+      ]
+   },
+   ...
 ]
 ```
 
-## Summury of the process
-
-### for Kenya
-
-Checklists lost by filtering for valid pentad:
-
-- 12% lost by historical without distance.
-- 40% lost by incomplete list (not reporting all species).
-- ~30% lost by within pentad restriction.
-- 40% lost without duration.
-- 23K checklists (26% of the 90K) kept after this filtering (some of the checklists are filtered multiple time).
-- 13K checklists can be match to a valid card (i.e., sum or duration >2hr)
-- Process results in 4.2K cards.
-
-### for South Africa
-
-- 33K checklist matched to a valid card
-- 14K cards.
-
 ## Discussion
-
-General considerations:
-
-- Duplicate observers: Not sure what is happening on the EBD. Something to check.
-- Within pentad is currently estimated as (distance center of pentad to checklist location) + distance traveled < 1.2\*half of pentad resolution. The 1.2 is to be able to keep more data while accepting checklists which were just at the border of a pentad.
-- Should `GLOBALUNIQUEIDENTIFIER` be kept?
-- Code written in MATLAB but allows to be fast (vectorial computation: 4 min.)
 
 What eBird/eBird user can do to improve/maximize the number of card?
 
