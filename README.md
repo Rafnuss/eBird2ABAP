@@ -68,7 +68,7 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 
 |                  | **Example**                 | **eBird EBD**                 | **Comments**                                                                |
 | ---------------- | --------------------------- | ----------------------------- | --------------------------------------------------------------------------- |
-| **Sequence**     | 1                           | _i_                           | Use pseudo-sequence determined by order of checklist                        |
+| **Sequence**     | 1                           | _i_                           | Taxonomic order                                                             |
 | **Latitude**     | 9.0910404                   | checklist_latitude            | Not recorded                                                                |
 | **Longitude**    | 7.4309485                   | checklist_longitude           | Not recorded                                                                |
 | **Altitude**     | 469.8                       | ""                            | Not recorded                                                                |
