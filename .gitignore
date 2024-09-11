@@ -9,3 +9,7 @@ data/Africa_Bou*
 *.pyc
 export/*
 old/*
+build/*
+*.egg
+**__pycache__
+**.egg-info/*
