@@ -16,6 +16,10 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Build package
+        run: |
+          python -m build  # Builds both sdist and wheel in the dist/ directory
+
       - name: Publish package to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
