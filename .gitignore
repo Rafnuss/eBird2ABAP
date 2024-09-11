@@ -1,7 +1,11 @@
 *.DS_Store
 *.mat
 *.asv
-data/
+data/eBird/*
+data/ABAP/*
+data/kbm/*
+data/KBM*/*
+data/Africa_Bou*
 *.pyc
 export/*
 old/*
