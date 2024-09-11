@@ -10,9 +10,5 @@ setup(
     author="Raphaël Nussbaumer",
     description="Create ABAP card from eBird data",
     packages=find_packages(),
-    package_data={
-        "eBird2ABAP": ["data/species_list/matched_species.csv"],
-    },
-    include_package_data=True,
     install_requires=required_packages,
 )

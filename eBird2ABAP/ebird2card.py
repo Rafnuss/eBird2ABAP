@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import importlib.resources as pkg_resources
 
 # import json
 import os
@@ -16,44 +15,22 @@ from .utils import latlng2pentad, pentad2latlng
 
 
 def ebird2abap(EBD_file, JSON_file=None):
-    print("Reading EBD file...")
     ebd = read_EBD(EBD_file)
-
-    print("Adding ADU number...")
     ebd = add_ADU(ebd)
-
-    print("Computing checklists...")
     chk = ebd2chk(ebd)
-
-    print("Checking validity of cards...")
     card_valid = chk2valid_card(chk)
-
-    print("Converting valid cards to CHK cards...")
     chk_card = valid_card2chk_card(chk, card_valid)
-
-    print("Converting CHK cards to card check...")
     card_chk = chk_card2card_chk(chk_card, card_valid)
-
-    print("Converting CHK cards to EBD formatted units...")
     ebd_f_u = chk_card2ebd_f_u(ebd, chk_card)
-
-    print("Converting EBD formatted units to card expressions...")
     card_exp = ebd_f_u2card_exp(card_chk, ebd_f_u)
-
-    print("Converting card expressions to JSON format...")
     json_data = card_exp.to_json(orient="records", indent=2)
 
     if JSON_file is None:
         basename = os.path.splitext(os.path.basename(EBD_file))[0]
-        JSON_file = (
-            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
+        JSON_file = f"../export/{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
-    print(f"Writing JSON data to {JSON_file}...")
     with open(JSON_file, "w") as f:
         f.write(json_data)
-
-    print("Process completed successfully.")
 
     # card_chk.to_csv(
     #     f"../export/ebd_AFR_rel{month}-{year}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_cards.csv",
@@ -133,15 +110,11 @@ def read_EBD(file):
     return ebd
 
 
-def load_matched_species():
-    with pkg_resources.path("eBird2ABAP.data", "matched_species.csv") as file_path:
-        df = pd.read_csv(file_path)
-    return df
-
-
-def add_ADU(ebd, return_unmatched=False):
+def add_ADU(
+    ebd, file="../data/species_list/matched_species.csv", return_unmatched=False
+):
     # Read matched_species data. See species_match.ipynb
-    matched_species = load_matched_species()
+    matched_species = pd.read_csv(file)
 
     ebd = pd.merge(
         ebd,  # .loc[:,['OBSERVER ID', 'PENTAD', "SAMPLING EVENT IDENTIFIER", "OBSERVATION DATE"]],
