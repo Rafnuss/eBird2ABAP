@@ -14,8 +14,8 @@ import datetime
 from .utils import latlng2pentad, pentad2latlng
 
 
-def ebird2abap(file):
-    ebd = read_EBD(file)
+def ebird2abap(EBD_file, JSON_file=None):
+    ebd = read_EBD(EBD_file)
     ebd = add_ADU(ebd)
     chk = ebd2chk(ebd)
     card_valid = chk2valid_card(chk)
@@ -25,11 +25,11 @@ def ebird2abap(file):
     card_exp = ebd_f_u2card_exp(card_chk, ebd_f_u)
     json_data = card_exp.to_json(orient="records", indent=2)
 
-    basename = os.path.splitext(os.path.basename(file))[0]
-    with open(
-        f"../export/{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
-        "w",
-    ) as f:
+    if JSON_file is None:
+        basename = os.path.splitext(os.path.basename(EBD_file))[0]
+        JSON_file = f"../export/{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+    with open(JSON_file, "w") as f:
         f.write(json_data)
 
     # card_chk.to_csv(
