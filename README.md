@@ -1,4 +1,8 @@
+[![PyPI version](https://img.shields.io/pypi/v/eBird2ABAP.svg)](https://pypi.org/project/eBird2ABAP/) [![GitHub stars](https://img.shields.io/github/stars/Rafnuss/eBird2ABAP.svg?)](https://github.com/Rafnuss/eBird2ABAP)
+
 # eBird to ABAP
+
+[View on GitHub](https://github.com/RaphaelNussbaumer/eBird2ABAP)
 
 The aims of this python package is to produce a dataset of ABAP full protocol card equivalent from the eBird EBD dataset.
 
@@ -11,7 +15,7 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird).
 Install the package from Github
 
 ```bash
-pip install git+https://github.com/Rafnuss/eBird2ABAP.git#egg=eBird2ABAP
+pip install eBird2ABAP
 ```
 
 Download EBD:
