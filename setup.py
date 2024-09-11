@@ -1,9 +1,5 @@
 from setuptools import setup, find_packages
 
-# Read requirements from requirements.txt
-with open("requirements.txt") as f:
-    required_packages = f.read().splitlines()
-
 setup(
     name="eBird2ABAP",
     version="0.2",
@@ -14,5 +10,5 @@ setup(
         "eBird2ABAP": ["matched_species.csv"],
     },
     include_package_data=True,
-    install_requires=required_packages,
+    install_requires=["numpy", "pandas"],
 )
