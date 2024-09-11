@@ -135,6 +135,7 @@ def add_ADU(
         )
         return unmatched
     else:
+        ebd["ADU"] = ebd["ADU"].fillna(0).astype(int)
         return ebd
 
 
@@ -379,6 +380,7 @@ def chk_card2ebd_f_u(ebd, chk_card):
         [
             "SAMPLING EVENT IDENTIFIER",
             "SCIENTIFIC NAME",
+            "TAXON CONCEPT ID",
             "ADU",
             "OBSERVATION DATETIME",
             "LATITUDE",
@@ -400,7 +402,9 @@ def chk_card2ebd_f_u(ebd, chk_card):
         by="OBSERVATION DATETIME", inplace=True
     )  # SHould have been done already above, but necessary for keep="first"
 
-    ebd_f_u = ebd_f.drop_duplicates(subset=["CARD", "ADU"], keep="first").copy()
+    ebd_f_u = ebd_f.drop_duplicates(
+        subset=["CARD", "TAXON CONCEPT ID"], keep="first"
+    ).copy()
     ebd_f_u.reset_index(drop=True, inplace=True)
 
     # Compute the sequence of records based on datetime entry
@@ -410,7 +414,10 @@ def chk_card2ebd_f_u(ebd, chk_card):
 
     # Compute the sequence basd on taxonomical order
     ebd_f_u["SEQ"] = (
-        ebd_f_u.groupby("CARD")["ADU"].rank(method="min").fillna(-1).astype(int)
+        ebd_f_u.groupby("CARD")["TAXON CONCEPT ID"]
+        .rank(method="min")
+        .fillna(-1)
+        .astype(int)
     )
 
     # Not sure why, but fillina NA by nothing
@@ -430,6 +437,7 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
     card_sp = (
         ebd_f_u.groupby("CARD")[
             [
+                "TAXON CONCEPT ID",
                 "ADU",
                 "SEQ",
                 "LATITUDE",
@@ -476,7 +484,14 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
 
     # Function that generate species record to be used for each species of each card
     def create_records(
-        ADU, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM, CARD
+        TAXON_CONCEPT_ID,
+        ADU,
+        SEQ,
+        LATITUDE,
+        LONGITUDE,
+        OBSERVATION_DATETIME,
+        EFFORT_DISTANCE_KM,
+        CARD,
     ):
         return [
             {
@@ -486,17 +501,25 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
                 "Altitude": "",
                 "CardNo": CARD,
                 "Spp": ADU,
+                "SourceSpp": TAXON_CONCEPT_ID,
                 "Accuracy": EFFORT_DISTANCE_KM * 1000,
                 "SightingTime": OBSERVATION_DATETIME,
             }
-            for ADU, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM in zip(
-                ADU, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM
+            for TAXON_CONCEPT_ID, ADU, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM in zip(
+                TAXON_CONCEPT_ID,
+                ADU,
+                SEQ,
+                LATITUDE,
+                LONGITUDE,
+                OBSERVATION_DATETIME,
+                EFFORT_DISTANCE_KM,
             )
         ]
 
     # Apply the function
     card_exp["records"] = card_exp.apply(
         lambda row: create_records(
+            row["TAXON CONCEPT ID"],
             row["ADU"],
             row["SEQ"],
             row["LATITUDE"],

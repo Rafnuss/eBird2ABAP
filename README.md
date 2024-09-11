@@ -138,7 +138,8 @@ ebird2abap("data/eBird/ebd_AFR_relJul-2024/ebd_AFR_relJul-2024.txt.gz")
          "Longitude":-2.40952,
          "Altitude":"",
          "CardNo":"0500b0220_r1034990_20180213",
-         "Spp":1338.0,
+         "Spp":1338,
+         "SourceSpp":,
          "Accuracy":"",
          "SightingTime":"2018-02-13T15:08:00Z"
          },
