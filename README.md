@@ -1,10 +1,31 @@
 # eBird to ABAP
 
-The aims of this code is to produce a dataset of ABAP full protocol card equivalent from the eBird EBD dataset.
+The aims of this python package is to produce a dataset of ABAP full protocol card equivalent from the eBird EBD dataset.
 
 The overview process is to find and combine eBird checklists that satisfy the full protocol requirements: same observers, within a pentad, at least 2hr of reporting all species spread over 5 days.
 
-This process does not address "ad hoc" data (e.g., incomplete data in eBird); we should discuss how to support that as well if that is of interest to the ABAP.
+This process does not address "ad hoc" data (e.g., incomplete data in eBird).
+
+## Getting started
+
+Install the package from Github
+
+```bash
+pip install git+https://github.com/Rafnuss/eBird2ABAP.git#egg=eBird2ABAP
+```
+
+Download EBD:
+
+```bash
+wget https://ebird.org/data/download?p=prepackaged/ebd_AFR_relJul-2024.tar
+```
+
+Run the function
+
+```python
+import eBird2ABAP
+ebird2abap("data/eBird/ebd_AFR_relJul-2024/ebd_AFR_relJul-2024.txt.gz")
+```
 
 ## Process
 
@@ -129,6 +150,8 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird); we
 ```
 
 ## Discussion
+
+- Support Ad-hoc?
 
 What eBird/eBird user can do to improve/maximize the number of card?
 
