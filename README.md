@@ -23,7 +23,7 @@ wget https://ebird.org/data/download?p=prepackaged/ebd_AFR_relJul-2024.tar
 Run the function
 
 ```python
-import eBird2ABAP
+from eBird2ABAP import *
 ebird2abap("data/eBird/ebd_AFR_relJul-2024/ebd_AFR_relJul-2024.txt.gz")
 ```
 
