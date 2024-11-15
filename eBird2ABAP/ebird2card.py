@@ -99,6 +99,7 @@ def read_EBD(file, nrows=None):
         delimiter="\t",
         usecols=[
             "SAMPLING EVENT IDENTIFIER",
+            "GROUP IDENTIFIER",
             "SCIENTIFIC NAME",
             "TAXON CONCEPT ID",
             "CATEGORY",
@@ -117,6 +118,15 @@ def read_EBD(file, nrows=None):
     )
 
     ebd = ebd0
+
+    # Combine shared checklist: Overwrite sampling event identifier by the first one submitted (lower SXXXXXX value)
+    ebd["SAMPLING EVENT IDENTIFIER"] = (
+        ebd.groupby("GROUP IDENTIFIER")["SAMPLING EVENT IDENTIFIER"]
+        .transform("min")
+        .where(ebd["GROUP IDENTIFIER"].notna(), ebd["SAMPLING EVENT IDENTIFIER"])
+    )
+    # Drop the GROUP IDENTIFIER column
+    ebd = ebd.drop(columns="GROUP IDENTIFIER")
 
     # Create OBSERVATIONDATETIME by combining date and time
     tmp = ebd["TIME OBSERVATIONS STARTED"].fillna("00:00:00")
