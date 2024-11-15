@@ -93,7 +93,7 @@ def download_EBD(year=None, month=None):
     return filepath
 
 
-def read_EBD(file):
+def read_EBD(file, nrows=None):
     ebd0 = pd.read_csv(
         file,
         delimiter="\t",
@@ -113,6 +113,7 @@ def read_EBD(file):
             "OBSERVER ID",
         ],
         parse_dates=["OBSERVATION DATE"],
+        nrows=nrows,  # Use this to read only a smaller portion of the file to run faster and test the code
     )
 
     ebd = ebd0
