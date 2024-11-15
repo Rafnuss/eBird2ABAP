@@ -15,7 +15,7 @@ import datetime
 from .utils import latlng2pentad, pentad2latlng
 
 
-def ebird2abap(EBD_file, JSON_file=None):
+def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
     print("Reading EBD file...")
     ebd = read_EBD(EBD_file)
 
@@ -44,7 +44,9 @@ def ebird2abap(EBD_file, JSON_file=None):
     json_data = card_exp.to_json(orient="records", indent=2)
 
     if JSON_file is None:
-        basename = os.path.splitext(os.path.basename(EBD_file))[0]
+        basename = (
+            os.path.basename(EBD_file).removesuffix(".txt.gz").removesuffix(".txt")
+        )
         JSON_file = (
             f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         )
@@ -53,20 +55,22 @@ def ebird2abap(EBD_file, JSON_file=None):
     with open(JSON_file, "w") as f:
         f.write(json_data)
 
-    print("Process completed successfully.")
+    if exportCSV:
+        print(f"Writing CSV data...")
+        card_chk.to_csv(
+            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_cards.csv",
+            index=False,
+        )
+        ebd_f_u[["CARD", "ADU", "SEQ"]].to_csv(
+            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_records.csv",
+            index=False,
+        )
 
-    # card_chk.to_csv(
-    #     f"../export/ebd_AFR_rel{month}-{year}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_cards.csv",
-    #     index=False,
-    # )
-    # ebd_f_u[["CARD", "ADU", "SEQ"]].to_csv(
-    #     f"../export/ebd_AFR_rel{month}-{year}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_records.csv",
-    #     index=False,
-    # )
+    print("Process completed successfully.")
 
 
 def download_EBD(year=None, month=None):
-    if year is None | month is None:
+    if (year is None) | (month is None):
         # Calculate previous month and year
         today = datetime.date.today()
         last_month = today.replace(day=1) - datetime.timedelta(days=1)
@@ -76,15 +80,15 @@ def download_EBD(year=None, month=None):
             month = last_month.strftime("%b")
 
     # Construct URL and filename
-    url = f"https://ebird.org/data/download?p=prepackaged/ebd_AFR_rel{month}-{year}.tar"
+    url = f"https://download.ebird.org/ebd/prepackaged/ebd_AFR_rel{month}-{year}.tar"
     filename = os.path.basename(url)
     filepath = os.path.join("../data/eBird/", filename)
 
-    # with open(filepath, "wb") as f:
-    #     f.write(requests.get(url).content)
+    with open(filepath, "wb") as f:
+        f.write(requests.get(url).content)
 
-    # with tarfile.open(filepath, "r") as tar:
-    #     tar.extractall(f"../data/eBird/ebd_AFR_rel{month}-{year}/")
+    with tarfile.open(filepath, "r") as tar:
+        tar.extractall(f"../data/eBird/ebd_AFR_rel{month}-{year}/")
 
     return filepath
 
