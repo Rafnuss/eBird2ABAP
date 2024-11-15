@@ -6,8 +6,11 @@ import importlib.resources as pkg_resources
 import os
 import datetime
 
-# import requests
-# import tarfile
+import requests
+import tarfile
+
+# from tqdm.notebook import tqdm
+
 # import sys
 # import csv
 
