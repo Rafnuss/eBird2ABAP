@@ -56,8 +56,8 @@ def latlng2pentad(lat, lng):
     # Determine the quadrant character based on latitude and longitude signs
     letter = np.empty_like(lat, dtype=str)
     letter[(lat <= 0) & (lng > 0)] = "_"
-    letter[(lat < 0) & (lng < 0)] = "a"
-    letter[(lat > 0) & (lng < 0)] = "b"
+    letter[(lat <= 0) & (lng <= 0)] = "a"
+    letter[(lat > 0) & (lng <= 0)] = "b"
     letter[(lat > 0) & (lng > 0)] = "c"
 
     # Adjust latitude and longitude for pentad conversion
