@@ -88,6 +88,7 @@ def download_EBD(year=None, month=None):
     filepath = os.path.join("../data/eBird/", filename)
 
     with open(filepath, "wb") as f:
+        print(f"Request data at {url}")
         f.write(requests.get(url).content)
 
     with tarfile.open(filepath, "r") as tar:
