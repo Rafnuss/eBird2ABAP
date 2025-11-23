@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eBird2ABAP"
+version = "0.2.1"
+description = "Create ABAP card from eBird data"
+readme = "README.md"
+authors = [
+  { name = "Raphaël Nussbaumer" },
+]
+requires-python = ">=3.8"
+dependencies = [
+    "numpy",
+    "pandas",
+    "geopandas",
+    "shapely",
+    "matplotlib",
+    "jupyter",
+    "notebook",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Rafnuss/eBird2ABAP"
+
+[tool.setuptools.packages.find]
+where = ["."]  # list of folders that contain the packages (["."] by default)
+include = ["eBird2ABAP*"]  # package names should match these glob patterns (["*"] by default)
+namespaces = false  # to disable scanning PEP 420 namespaces (true by default)
+
+[tool.setuptools.package-data]
+eBird2ABAP = ["matched_species.csv"]
