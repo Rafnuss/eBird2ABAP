@@ -14,8 +14,8 @@ import tarfile
 # import sys
 # import csv
 
-# Now import the necessary functions from utils.py
-from .utils import latlng2pentad, pentad2latlng
+# Now import the necessary functions from pentad.py
+from .pentad import latlng2pentad, pentad2latlng
 
 
 def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):

@@ -12,11 +12,16 @@ This process does not address "ad hoc" data (e.g., incomplete data in eBird).
 
 ## Getting started
 
-Install the package from Github
+### Installation
+
+Install the package from PyPI:
 
 ```bash
 pip install eBird2ABAP
 ```
+### Usage
+
+#### Convert eBird data to ABAP cards
 
 Download EBD:
 
@@ -24,12 +29,19 @@ Download EBD:
 wget https://ebird.org/data/download?p=prepackaged/ebd_AFR_relJul-2024.tar
 ```
 
-Run the function
+Run the function:
 
 ```python
-from eBird2ABAP import *
 ebird2abap("data/eBird/ebd_AFR_relJul-2024/ebd_AFR_relJul-2024.txt.gz")
 ```
+
+#### Pentad utilities
+
+This package also includes several functions to work with pentads. See `notebook/pentad_naming_conventions.ipynb` for more details.
+
+#### Generate pentad grid for a region
+
+See `notebook/pentad_generation_test.ipynb` for more details
 
 ## Process
 
@@ -104,7 +116,7 @@ ebird2abap("data/eBird/ebd_AFR_relJul-2024/ebd_AFR_relJul-2024.txt.gz")
 
 ## Sample ouput
 
-```{js}
+```js
 [
    {
       "Protocol":"F",

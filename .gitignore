@@ -13,3 +13,6 @@ build/*
 *.egg
 **__pycache__
 **.egg-info/*
+.venv/
+/proposal
+/data/interim
