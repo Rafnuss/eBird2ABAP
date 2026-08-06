@@ -4,12 +4,11 @@
 data/eBird/*
 data/ebd/*
 data/ABAP/*
-data/kbm/*
 data/KBM*/*
 data/Africa_Bou*
 *.pyc
 export/*
-old/*
+archive/*
 build/*
 *.egg
 **__pycache__
