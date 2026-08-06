@@ -2,6 +2,7 @@
 *.mat
 *.asv
 data/eBird/*
+data/ebd/*
 data/ABAP/*
 data/kbm/*
 data/KBM*/*
