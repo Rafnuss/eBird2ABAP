@@ -5,6 +5,7 @@ import importlib.resources as pkg_resources
 # import json
 import os
 import datetime
+from pathlib import Path
 
 import requests
 import tarfile
@@ -16,6 +17,8 @@ import tarfile
 
 # Now import the necessary functions from pentad.py
 from .pentad import latlng2pentad, pentad2latlng
+
+DEFAULT_EBD_DIR = Path("data") / "ebd"
 
 
 def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
@@ -72,27 +75,58 @@ def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
     print("Process completed successfully.")
 
 
-def download_EBD(year=None, month=None):
-    if (year is None) | (month is None):
-        # Calculate previous month and year
+def download_EBD(year=None, month=None, output_dir=DEFAULT_EBD_DIR):
+    if (year is None) != (month is None):
+        raise ValueError("year and month must be provided together")
+
+    if year is None and month is None:
         today = datetime.date.today()
-        last_month = today.replace(day=1) - datetime.timedelta(days=1)
-        if year is None:
-            year = last_month.strftime("%Y")
-        if month is None:
-            month = last_month.strftime("%b")
+        release_month = today.replace(day=1) - datetime.timedelta(days=1)
+        candidates = []
+        for _ in range(4):
+            candidates.append((release_month.strftime("%Y"), release_month.strftime("%b")))
+            release_month = release_month.replace(day=1) - datetime.timedelta(days=1)
+    else:
+        candidates = [(year, month)]
 
-    # Construct URL and filename
-    url = f"https://download.ebird.org/ebd/prepackaged/ebd_AFR_rel{month}-{year}.tar"
-    filename = os.path.basename(url)
-    filepath = os.path.join("../data/eBird/", filename)
+    os.makedirs(output_dir, exist_ok=True)
 
-    with open(filepath, "wb") as f:
-        print(f"Request data at {url}")
-        f.write(requests.get(url).content)
+    for i, (year, month) in enumerate(candidates):
+        url = f"https://download.ebird.org/ebd/prepackaged/ebd_AFR_rel{month}-{year}.tar"
+        filename = os.path.basename(url)
+        filepath = os.path.join(output_dir, filename)
+        print(f"Checking African EBD release {month}-{year}...", flush=True)
 
+        with requests.get(url, stream=True) as response:
+            if response.status_code == 404 and i < len(candidates) - 1:
+                print("Not available; trying an older release.", flush=True)
+                continue
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0)) or None
+            downloaded_size = 0
+            next_progress = 0
+            with open(filepath, "wb") as f:
+                for chunk in response.iter_content(chunk_size=1024 * 1024):
+                    if chunk:
+                        f.write(chunk)
+                        downloaded_size += len(chunk)
+                        if total_size:
+                            progress = int(downloaded_size / total_size * 100)
+                            if progress >= next_progress:
+                                print(f"\rDownloading {filename}: {progress:3d}%", end="", flush=True)
+                                next_progress += 5
+                        elif downloaded_size // (100 * 1024 * 1024) > next_progress:
+                            next_progress = downloaded_size // (100 * 1024 * 1024)
+                            print(f"\rDownloading {filename}: {next_progress * 100} MB", end="", flush=True)
+            print()
+        break
+    else:
+        raise FileNotFoundError("No African EBD release found in the last four release months")
+
+    extract_dir = os.path.join(output_dir, f"ebd_AFR_rel{month}-{year}")
+    os.makedirs(extract_dir, exist_ok=True)
     with tarfile.open(filepath, "r") as tar:
-        tar.extractall(f"../data/eBird/ebd_AFR_rel{month}-{year}/")
+        tar.extractall(extract_dir)
 
     return filepath
 
