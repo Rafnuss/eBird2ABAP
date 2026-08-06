@@ -5,6 +5,7 @@ import importlib.resources as pkg_resources
 # import json
 import os
 import datetime
+import gzip
 from pathlib import Path
 
 import requests
@@ -21,7 +22,40 @@ from .pentad import latlng2pentad, pentad2latlng
 DEFAULT_EBD_DIR = Path("data") / "ebd"
 
 
+def _is_species_ebd_file(path):
+    opener = gzip.open if path.name.endswith(".gz") else open
+    with opener(path, "rt", encoding="utf-8", errors="ignore") as f:
+        columns = {column.strip().strip('"') for column in f.readline().split("\t")}
+    return {"SAMPLING EVENT IDENTIFIER", "SCIENTIFIC NAME"}.issubset(columns)
+
+
+def _resolve_EBD_file(file):
+    path = Path(file)
+    if path.is_file():
+        return path
+    if path.is_dir():
+        candidates = sorted(
+            candidate
+            for candidate in path.iterdir()
+            if candidate.is_file()
+            and candidate.name.endswith((".txt", ".txt.gz"))
+            and "sampling" not in candidate.name.lower()
+            and _is_species_ebd_file(candidate)
+        )
+        if len(candidates) == 1:
+            return candidates[0]
+        if not candidates:
+            raise FileNotFoundError(
+                f"No species-level EBD .txt or .txt.gz file found in {path}"
+            )
+        raise ValueError(
+            f"More than one species-level EBD file found in {path}: {candidates}"
+        )
+    raise FileNotFoundError(f"EBD file or directory does not exist: {path}")
+
+
 def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
+    EBD_file = _resolve_EBD_file(EBD_file)
     print("Reading EBD file...")
     ebd = read_EBD(EBD_file)
 
@@ -132,6 +166,7 @@ def download_EBD(year=None, month=None, output_dir=DEFAULT_EBD_DIR):
 
 
 def read_EBD(file, nrows=None):
+    file = _resolve_EBD_file(file)
     columns = pd.read_csv(file, delimiter="\t", nrows=0).columns
     protocol_column = (
         "PROTOCOL TYPE" if "PROTOCOL TYPE" in columns else "PROTOCOL NAME"
