@@ -19,6 +19,8 @@ dependencies = [
     "matplotlib",
     "jupyter",
     "notebook",
+    "requests",
+    "openpyxl",
 ]
 
 [project.urls]
