@@ -98,6 +98,10 @@ def download_EBD(year=None, month=None):
 
 
 def read_EBD(file, nrows=None):
+    columns = pd.read_csv(file, delimiter="\t", nrows=0).columns
+    protocol_column = (
+        "PROTOCOL TYPE" if "PROTOCOL TYPE" in columns else "PROTOCOL NAME"
+    )
     ebd0 = pd.read_csv(
         file,
         delimiter="\t",
@@ -111,7 +115,7 @@ def read_EBD(file, nrows=None):
             "LONGITUDE",
             "OBSERVATION DATE",
             "TIME OBSERVATIONS STARTED",
-            "PROTOCOL TYPE",
+            protocol_column,
             "DURATION MINUTES",
             "EFFORT DISTANCE KM",
             "ALL SPECIES REPORTED",
@@ -120,6 +124,8 @@ def read_EBD(file, nrows=None):
         parse_dates=["OBSERVATION DATE"],
         nrows=nrows,  # Use this to read only a smaller portion of the file to run faster and test the code
     )
+    if protocol_column != "PROTOCOL TYPE":
+        ebd0.rename(columns={protocol_column: "PROTOCOL TYPE"}, inplace=True)
 
     ebd = ebd0
 
