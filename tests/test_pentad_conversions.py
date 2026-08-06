@@ -7,12 +7,7 @@ Tests the fundamental coordinate <-> pentad ID conversions:
 """
 
 import numpy as np
-import sys
-from pathlib import Path
-
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from pentad import latlng2pentad, pentad2latlng
+from eBird2ABAP.pentad import latlng2pentad, pentad2latlng
 
 
 def test_latlng2pentad():

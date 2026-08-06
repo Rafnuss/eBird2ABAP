@@ -48,12 +48,8 @@ This keeps `pentad2polygon` simple and ensures consistency between the two funct
 
 import numpy as np
 import pandas as pd
-import sys
-from pathlib import Path
 
-# Add parent directory to path to import pentad module
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from pentad import pentad2polygon
+from eBird2ABAP.pentad import pentad2polygon
 
 
 def test_pentad2polygon_bounds():

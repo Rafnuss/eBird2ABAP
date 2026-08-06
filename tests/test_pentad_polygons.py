@@ -7,13 +7,9 @@ Tests polygon creation from both pentad IDs and coordinates:
 """
 
 import numpy as np
-import sys
-from pathlib import Path
 from shapely.geometry import Point
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-from pentad import pentad2polygon, latlng2polygon, pentad2latlng, latlng2pentad
+from eBird2ABAP.pentad import pentad2polygon, latlng2polygon, pentad2latlng, latlng2pentad
 
 
 def test_pentad2polygon_contains_center():
