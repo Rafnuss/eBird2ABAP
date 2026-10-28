@@ -1,49 +1,7 @@
-"""
-Test pentad2polygon function with specific known bounds.
+"""Reference bounds under the published northwest-corner naming rule.
 
-This test verifies that pentad2polygon returns the correct geometric bounds
-for specific pentad IDs with known coordinates from KML data.
-
-# Pentad ID Interpretation
-
-The pentad ID format `XXYYcZZWW` represents the **NW corner** of the grid cell:
-- **Latitude (XXYY)**: North edge (furthest from equator)
-- **Longitude (ZZWW)**: West edge (closest to prime meridian in absolute terms)
-
-## Cell Extension
-
-From the NW corner, cells extend:
-- **5 arcminutes east** (toward higher longitude)
-- **5 arcminutes toward the equator** (toward lower absolute latitude)
-
-## Center Calculation
-
-The center of a pentad cell is calculated by moving from the NW corner:
-- **2.5 arcminutes east** (half the cell width)
-- **2.5 arcminutes toward the equator** (half the cell height)
-
-## Edge Cases
-
-1. **Prime Meridian Crossing**: When `lng = 00°00'` with western quadrant ('a' or 'b'),
-   the cell extends from `-5'` to `0°`
-2. **Equator Crossing**: When `lat = 00°00'` with southern quadrant ('_' or 'a'),
-   the cell extends from `-5'` to `0°`
-
-## Naming Convention Note
-
-One pentad ID from the original KML data (`0540c0005`) used a different naming
-convention than the current `latlng2pentad` implementation. The test uses
-`0540b0000`, which is what the current implementation generates for that cell.
-
-## Architecture
-
-The functions maintain a clean separation of concerns:
-- **`pentad2latlng`**: Converts pentad IDs to center coordinates by interpreting
-  the ID as the NW corner and calculating the center
-- **`pentad2polygon`**: Uses `pentad2latlng` to get the center, then creates a
-  box around it with ±2.5 arcminutes
-
-This keeps `pentad2polygon` simple and ensures consistency between the two functions.
+The KML label 0540c0005 incorrectly denotes a western cell; test its logical
+ID 0540b0005 explicitly instead. See docs/pentad-kml-audit.md for provenance.
 """
 
 import numpy as np
@@ -81,10 +39,10 @@ def test_pentad2polygon_bounds():
             'kml_id': '0540c0000'  # Matches
         },
         {
-            'pentad_id': '0540b0000',  # Changed from 0540c0005
+            'pentad_id': '0540b0005',  # Logical ID of the western cell
             'expected_bounds': (-0.08333, 5.58333, 0.00000, 5.66667),
             'description': 'Crossing prime meridian, northern hemisphere',
-            'kml_id': '0540c0005'  # Original KML used different convention
+            'kml_id': '0540c0005'  # Published label disagrees with its geometry
         },
         {
             'pentad_id': '0005c0630',

@@ -17,57 +17,29 @@ from shapely.geometry import box
 # Core Pentad ID Conversions
 # ============================================================================
 
-def _get_nw_corner(lat, lng):
+def _grid_nw_corner(lat, lng):
+    """Return signed north/west edges in integer five-minute grid units.
+
+    Shared edges belong to the cell south/east of the edge:
+    latitude (south, north], longitude [west, east). Snap only floating-point
+    noise near exact grid lines (1e-10 grid units, about one micrometre).
     """
-    Compute the NW corner components of the pentad grid cell containing a point.
-    
-    Returns the degrees and minutes that represent:
-    - North edge (furthest from equator in absolute terms)
-    - West edge (closest to prime meridian in absolute terms)
-    
-    This is a helper function that encapsulates the core pentad grid computation.
-    
-    Parameters:
-    -----------
-    lat : float or array-like
-        Latitude(s).
-    lng : float or array-like
-        Longitude(s).
-        
-    Returns:
-    --------
-    tuple
-        (lat_deg, lng_deg, lat_min, lng_min) as integers/arrays of integers.
-    """
-    # Ensure inputs are arrays
-    lat = np.asarray(lat)
-    lng = np.asarray(lng)
-    
-    # Calculate absolute values
-    absLat = np.abs(lat)
-    absLng = np.abs(lng)
-    
-    # Calculate degrees
-    latDeg = np.floor(absLat).astype(int)
-    lngDeg = np.floor(absLng).astype(int)
-    
-    # Calculate minutes
-    latMin = (absLat - latDeg) * 60
-    lngMin = (absLng - lngDeg) * 60
-    
-    # Calculate pentad minutes (0, 5, 10, ..., 55)
-    # We use floor to find the start of the 5-minute interval
-    latSec = (np.floor(latMin / 5) * 5).astype(int)
-    lngSec = (np.floor(lngMin / 5) * 5).astype(int)
-    
-    return latDeg, lngDeg, latSec, lngSec
+    lat_grid = np.asarray(lat, dtype=float) * 12
+    lng_grid = np.asarray(lng, dtype=float) * 12
+    lat_grid = np.where(np.isclose(lat_grid, np.rint(lat_grid), rtol=0, atol=1e-10), np.rint(lat_grid), lat_grid)
+    lng_grid = np.where(np.isclose(lng_grid, np.rint(lng_grid), rtol=0, atol=1e-10), np.rint(lng_grid), lng_grid)
+    return np.ceil(lat_grid).astype(int), np.floor(lng_grid).astype(int)
 
 
 def latlng2pentad(lat, lng):
     """
     Convert latitude and longitude coordinates to pentad IDs.
     
-    The pentad ID is a unique identifier for a 5' x 5' grid cell.
+    The ID encodes the northwest corner of a 5' x 5' cell, following the
+    SABAP2 manual (section 2.2) and Brooks et al. (2022). Northern latitude
+    uses the north edge; western longitude uses the west edge. Published
+    website labels that disagree with this rule are not special-cased.
+    On shared edges, assign south/east: (south, north] x [west, east).
     Format: XXYYcZZWW
     - XX: Latitude degrees
     - YY: Latitude minutes (00, 05, ..., 55)
@@ -92,11 +64,9 @@ def latlng2pentad(lat, lng):
     lng = np.asarray(lng)
     
     # Handle scalar inputs by wrapping them in 1D arrays
-    scalar_input = False
     if lat.ndim == 0 and lng.ndim == 0:
         lat = lat[np.newaxis]
         lng = lng[np.newaxis]
-        scalar_input = True
         
     # Input validation
     if lat.shape != lng.shape:
@@ -106,27 +76,14 @@ def latlng2pentad(lat, lng):
     if np.any(np.abs(lng) > 180):
         raise ValueError("Longitude values must be between -180 and 180 degrees.")
     
-    # Compute pentad grid cell
-    latDeg, lngDeg, latSec, lngSec = _get_nw_corner(lat, lng)
-    
-    # Determine the quadrant character based on latitude and longitude signs
-    letter = np.empty_like(lat, dtype=str)
-    letter[(lat <= 0) & (lng > 0)] = "_"
-    letter[(lat <= 0) & (lng <= 0)] = "a"
-    letter[(lat > 0) & (lng <= 0)] = "b"
-    letter[(lat > 0) & (lng > 0)] = "c"
-    
-    # Convert to pentad string format (vectorized)
-    if np.isscalar(latDeg):
-        # Single value case
-        return [f"{int(latDeg):02d}{int(latSec):02d}{letter}{int(lngDeg):02d}{int(lngSec):02d}"]
-    else:
-        # Array case
-        pentad_ids = [
-            f"{int(latDeg[i]):02d}{int(latSec[i]):02d}{letter[i]}{int(lngDeg[i]):02d}{int(lngSec[i]):02d}"
-            for i in range(len(lat))
-        ]
-        return pentad_ids
+    north, west = _grid_nw_corner(lat, lng)
+    lat_minutes = np.abs(north) * 5
+    lng_minutes = np.abs(west) * 5
+    quadrant = np.where(north > 0, np.where(west < 0, "b", "c"), np.where(west < 0, "a", "_"))
+    return [
+        f"{y // 60:02d}{y % 60:02d}{q}{x // 60:02d}{x % 60:02d}"
+        for y, x, q in zip(lat_minutes, lng_minutes, quadrant)
+    ]
 
 
 # ============================================================================
@@ -138,8 +95,8 @@ def pentad2latlng(pentads):
     Converts pentad IDs to their center latitude and longitude coordinates.
     
     The pentad ID represents the NW corner of the grid cell.
-    The center is calculated by moving 2.5 arcminutes east and 2.5 arcminutes
-    toward the equator from this corner.
+    The center is always 2.5 arcminutes south and 2.5 arcminutes east of
+    the northwest corner. This is independent of hemisphere.
     
     Parameters:
     -----------
@@ -155,8 +112,8 @@ def pentad2latlng(pentads):
     --------
     >>> pentads = ["2530_2750", "3435a2925"]
     >>> lat, lng = pentad2latlng(pentads)
-    >>> print(lat)  # Output: [-25.54166667, -34.625]
-    >>> print(lng)  # Output: [27.875, -29.45833333]
+    >>> print(lat)  # Approximately [-25.541667, -34.625]
+    >>> print(lng)  # Approximately [27.875, -29.375]
     """
     # Accept a single pentad string or a list/array
     if isinstance(pentads, str):
@@ -188,30 +145,11 @@ def pentad2latlng(pentads):
     # Cell size
     d = 5 / 60
     
-    # Calculate signed NW corner coordinates based on quadrant
-    lat_north = np.zeros_like(lat_abs)
-    lng_west = np.zeros_like(lng_abs)
-    
-    for i, q in enumerate(quadrant):
-        if q == '_':  # Southern + Eastern
-            lat_north[i] = 0.0 if lat_abs[i] == 0 else -lat_abs[i]
-            lng_west[i] = lng_abs[i]
-        elif q == 'a':  # Southern + Western
-            lat_north[i] = 0.0 if lat_abs[i] == 0 else -lat_abs[i]
-            lng_west[i] = -lng_abs[i] if lng_abs[i] > 0 else -d
-        elif q == 'b':  # Northern + Western
-            lat_north[i] = lat_abs[i]
-            lng_west[i] = -lng_abs[i] if lng_abs[i] > 0 else -d
-        else:  # 'c': Northern + Eastern
-            lat_north[i] = lat_abs[i]
-            lng_west[i] = lng_abs[i]
-    
-    # Half pentad size (2.5 arcminutes)
-    half_d = d / 2
-    
-    # Calculate centers: move 2.5' east and 2.5' toward equator from NW corner
-    lat_centers = lat_north - half_d  # Always move toward equator (decrease absolute value)
-    lng_centers = lng_west + half_d   # Always move east (increase value)
+    # Decode signed northwest corner; zero longitude has no western offset.
+    lat_north = np.where(np.isin(quadrant, ["_", "a"]), -lat_abs, lat_abs)
+    lng_west = np.where(np.isin(quadrant, ["a", "b"]), -lng_abs, lng_abs)
+    lat_centers = lat_north - d / 2
+    lng_centers = lng_west + d / 2
 
     return lat_centers.tolist(), lng_centers.tolist()
 
@@ -225,12 +163,9 @@ def pentad2polygon(pentads):
     Returns the geometric bounding box (Polygon) for the given pentad ID(s).
     
     This function derives the polygon bounds directly from the pentad ID.
-    Note that because the pentad naming convention involves specific adjustments
-    (e.g., for points on boundaries), the polygon returned by this function
-    represents the "named" cell, which corresponds to the ID.
-    
-    For exact geometric bounds of a coordinate without naming adjustments,
-    use `latlng2polygon` instead.
+    Bounds follow the regular northwest-corner naming rule. For valid IDs,
+    this agrees with latlng2polygon() at any point assigned to the cell.
+    No website-specific label or geometry overrides are applied.
     
     Parameters:
     -----------
@@ -245,17 +180,8 @@ def pentad2polygon(pentads):
     is_scalar = isinstance(pentads, str)
     lats, lngs = pentad2latlng(pentads)  # Returns lists of centers
     
-    # Half-width in degrees (2.5 minutes)
-    d_half = (5 / 60) / 2
-    
-    polys = []
-    for lat, lng in zip(lats, lngs):
-        minx = lng - d_half
-        maxx = lng + d_half
-        miny = lat - d_half
-        maxy = lat + d_half
-        polys.append(box(minx, miny, maxx, maxy))
-        
+    polys = latlng2polygon(lats, lngs)
+
     if is_scalar:
         return polys[0]
     return polys
@@ -266,14 +192,10 @@ def latlng2polygon(lat, lng):
     """
     Returns the exact pentad grid cell polygon containing the given coordinate(s).
     
-    PRECISION NOTE:
-    Unlike `latlng2pentad`, this function calculates the *exact* geometric
-    boundaries of the 5'x5' grid cell containing the point, IGNORING the
-    SABAP2 naming convention adjustments (which shift edge points).
-    
-    Use this function when you need the precise spatial footprint of the grid
-    cell containing a specific point, rather than its label.
-    
+    This uses the same northwest-corner grid and edge assignment as
+    latlng2pentad(): (south, north] x [west, east). Polygon objects include
+    their boundaries geometrically; point assignment uses the half-open rule.
+
     Parameters:
     -----------
     lat : float or array-like
@@ -294,25 +216,12 @@ def latlng2polygon(lat, lng):
         lat = lat[np.newaxis]
         lng = lng[np.newaxis]
         
-    # Compute grid cell (absolute)
-    lat_deg, lng_deg, lat_min, lng_min = _get_nw_corner(lat, lng)
-    
-    # Absolute start (closest to zero)
-    abs_lat0 = lat_deg + lat_min / 60
-    abs_lng0 = lng_deg + lng_min / 60
-    
-    d = 5/60
-    
-    # Calculate bounds
-    # If val >= 0: [abs0, abs0 + d]
-    # If val < 0:  [-(abs0 + d), -abs0]
-    
-    miny = np.where(lat >= 0, abs_lat0, -(abs_lat0 + d))
-    maxy = np.where(lat >= 0, abs_lat0 + d, -abs_lat0)
-    
-    minx = np.where(lng >= 0, abs_lng0, -(abs_lng0 + d))
-    maxx = np.where(lng >= 0, abs_lng0 + d, -abs_lng0)
-    
+    north, west = _grid_nw_corner(lat, lng)
+    minx = west / 12
+    maxx = (west + 1) / 12
+    miny = (north - 1) / 12
+    maxy = north / 12
+
     polys = [box(x1, y1, x2, y2) for x1, y1, x2, y2 in zip(minx, miny, maxx, maxy)]
     
     if scalar_input:
@@ -322,10 +231,10 @@ def latlng2polygon(lat, lng):
 
 def generate_pentad_grid(geometry, return_geojson=True):
     """
-    Generate all pentads that intersect with a given geometry.
+    Generate pentads whose interiors overlap the given polygon geometry.
     
     This function creates a grid of pentad cells covering the bounding box
-    of the input geometry, then filters to only those that intersect it.
+    of the input geometry, then filters to cells with positive-area overlap, excluding boundary-only contact.
     
     Parameters:
     -----------
@@ -344,24 +253,10 @@ def generate_pentad_grid(geometry, return_geojson=True):
     # Get bounds
     minx, miny, maxx, maxy = geometry.bounds
     
-    # 5 minutes = 1/12 degree
-    d = 5 / 60
-    
-    # Generate grid centers
-    # We want to cover the entire bounding box.
-    # Start at a multiple of d that is <= minx
-    # End at a multiple of d that is >= maxx
-    
-    # Calculate start points (multiples of d)
-    x_start = np.floor(minx / d) * d
-    x_end = np.ceil(maxx / d) * d
-    y_start = np.floor(miny / d) * d
-    y_end = np.ceil(maxy / d) * d
-    
-    # Generate centers (start + d/2)
-    xs = np.arange(x_start, x_end + d/2, d) + d/2
-    ys = np.arange(y_start, y_end + d/2, d) + d/2
-    
+    # Integer grid indices avoid accumulated floating-point arange errors.
+    xs = (np.arange(np.floor(minx * 12), np.ceil(maxx * 12)) + 0.5) / 12
+    ys = (np.arange(np.floor(miny * 12), np.ceil(maxy * 12)) + 0.5) / 12
+
     # Create meshgrid of centers
     xx, yy = np.meshgrid(xs, ys)
     xx = xx.flatten()
@@ -379,7 +274,7 @@ def generate_pentad_grid(geometry, return_geojson=True):
     
     # Filter by intersection with the geometry
     # Using spatial index if available or just boolean indexing
-    gdf = gdf[gdf.intersects(geometry)]
+    gdf = gdf[gdf.intersects(geometry) & ~gdf.touches(geometry)]
     
     if return_geojson:
         return gdf.to_json()

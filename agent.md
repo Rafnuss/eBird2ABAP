@@ -31,7 +31,7 @@ This repository is a research-oriented Python package for converting eBird Basic
 
 - A pentad is a 5-minute by 5-minute cell.
 - Pentad IDs encode latitude, longitude, and quadrant using `_`, `a`, `b`, or `c`.
-- `pentad2polygon()` follows the named pentad ID, while `latlng2polygon()` follows the exact coordinate cell; they can differ at naming-convention boundaries.
+- `latlng2pentad()`, `pentad2latlng()`, and both polygon functions follow the documented northwest-corner rule consistently. Shared edges are assigned south/east: `(south, north]` by `[west, east)`. Follow `docs/pentads.md`; do not silently override the rule to reproduce exceptional website labels.
 - A valid card requires complete species reporting, an accepted protocol, pentad validity, positive duration, and at least two hours across a rolling five-day window for one observer and pentad.
 - The current output hard-codes the ABAP observer email/number and defaults `InclNight` and `AllHabitats` to zero. Treat these as project assumptions, not universal truth.
 

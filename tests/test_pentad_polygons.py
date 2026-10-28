@@ -6,6 +6,7 @@ Tests polygon creation from both pentad IDs and coordinates:
 - latlng2polygon: Create polygon from coordinates
 """
 
+import sys
 import numpy as np
 from shapely.geometry import Point
 
@@ -150,59 +151,12 @@ def test_polygon_size():
 
 
 def test_polygon_coherence():
-    """
-    Test coherence between pentad2polygon and latlng2polygon.
-    
-    For most points, pentad2polygon(latlng2pentad(lat, lng)) should equal
-    latlng2polygon(lat, lng). Mismatches can occur near boundaries due to
-    naming convention adjustments.
-    """
-    
-    print("\n" + "=" * 70)
-    print("Testing polygon coherence")
-    print("=" * 70)
-    
-    # Use points well within pentad cells (not on boundaries)
-    test_coords = [
-        (-25.04, 27.08, 'Pretoria (interior)'),
-        (0.04, 10.04, 'Equator (interior)'),
-        (51.52, -0.12, 'London (interior)'),
-    ]
-    
-    match_count = 0
-    total_count = len(test_coords)
-    
-    for lat, lng, description in test_coords:
-        # Get polygon via pentad ID
-        pentad_id = latlng2pentad([lat], [lng])[0]
-        poly_from_id = pentad2polygon(pentad_id)
-        
-        # Get polygon directly from coordinates
-        poly_from_coord = latlng2polygon([lat], [lng])[0]
-        
-        # Check if they're equal
-        match = poly_from_id.equals(poly_from_coord)
-        
-        status = "✓" if match else "~"
-        print(f"\n{status} {description}")
-        print(f"  Pentad ID: {pentad_id}")
-        print(f"  ID-derived bounds:    {poly_from_id.bounds}")
-        print(f"  Coord-derived bounds: {poly_from_coord.bounds}")
-        print(f"  Match: {match}")
-        
-        if match:
-            match_count += 1
-    
-    print(f"\n  Matches: {match_count}/{total_count}")
-    print("\n" + "=" * 70)
-    
-    # We expect most to match, but allow some mismatches near boundaries
-    if match_count >= total_count * 0.8:  # 80% threshold
-        print(f"✓ Polygon coherence acceptable ({match_count}/{total_count} matched)")
-    else:
-        print(f"✗ Too many mismatches ({match_count}/{total_count})")
-    
-    return True  # Don't fail on this test, just informational
+    """ID-derived and coordinate-derived cells must agree in every quadrant."""
+    for lat, lng in [(-25.04, 27.08), (0.04, 10.04), (51.52, -0.12), (-15.87, -5.62)]:
+        named = pentad2polygon(latlng2pentad(lat, lng)[0])
+        coordinate = latlng2polygon(lat, lng)
+        assert np.allclose(named.bounds, coordinate.bounds, rtol=0, atol=1e-12)
+    print("✓ Polygon coherence verified in all four quadrants")
 
 
 def test_vectorization():

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """
-Run all pentad module tests.
+Run all package test scripts.
 
 This script runs all test files in the tests directory and provides
 a summary of results.
@@ -10,12 +10,8 @@ import sys
 import subprocess
 from pathlib import Path
 
-# Test files to run (in order)
-TEST_FILES = [
-    'test_pentad_conversions.py',
-    'test_pentad_polygons.py',
-    'test_pentad_bounds.py',
-]
+# Discover test scripts so new regression suites are included automatically.
+TEST_FILES = sorted(path.name for path in Path(__file__).parent.glob("test_*.py"))
 
 def run_test(test_file):
     """Run a single test file and return success status."""
@@ -34,7 +30,7 @@ def run_test(test_file):
 def main():
     """Run all tests and report results."""
     print("\n" + "=" * 80)
-    print("PENTAD MODULE - RUNNING ALL TESTS")
+    print("EBIRD2ABAP - RUNNING ALL TESTS")
     print("=" * 80)
     
     results = {}

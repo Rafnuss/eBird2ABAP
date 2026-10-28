@@ -57,6 +57,8 @@ lat, lng = pentad2latlng(pentad)
 polygon = pentad2polygon(pentad)
 ```
 
+Pentads use the documented northwest-corner rule in all hemispheres. See [pentad naming and geometry](docs/pentads.md) for sources, shared-edge assignment, and known disagreements with published website labels. Regenerate northern/western grids and card IDs produced by older versions.
+
 ## Tests
 
 ```bash

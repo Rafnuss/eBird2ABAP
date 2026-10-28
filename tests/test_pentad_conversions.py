@@ -6,6 +6,7 @@ Tests the fundamental coordinate <-> pentad ID conversions:
 - pentad2latlng: Convert pentad IDs back to center coordinates
 """
 
+import sys
 import numpy as np
 from eBird2ABAP.pentad import latlng2pentad, pentad2latlng
 
@@ -20,11 +21,11 @@ def test_latlng2pentad():
     # Test cases: (lat, lng, expected_pentad_id, description)
     test_cases = [
         (-25.041667, 27.083333, '2500_2700', 'Pretoria/JHB area (S+E)'),
-        (-33.9249, 18.4241, '3355_1825', 'Cape Town (S+W)'),
-        (0.05, 10.0, '0000c1000', 'Just North of Equator (N+E)'),
+        (-33.9249, 18.4241, '3355_1825', 'Cape Town (S+E)'),
+        (0.05, 10.0, '0005c1000', 'Just North of Equator (N+E)'),
         (-0.05, 10.0, '0000_1000', 'Just South of Equator (S+E)'),
-        (51.5074, -0.1278, '5130b0005', 'London (N+W)'),
-        (40.7128, -74.0060, '4040b7400', 'New York (N+W)'),
+        (51.5074, -0.1278, '5135b0010', 'London (N+W)'),
+        (40.7128, -74.0060, '4045b7405', 'New York (N+W)'),
         (-25.0, 27.0, '2500_2700', 'Exact grid line'),
         (-25.083333, 27.0, '2500_2700', '5 min boundary'),
     ]
@@ -70,7 +71,7 @@ def test_pentad2latlng():
     test_cases = [
         ('2500_2700', -25.041667, 27.041667, 'Pretoria area'),
         ('0000_1000', -0.041667, 10.041667, 'Equator crossing (southern)'),
-        ('5130b0005', 51.458333, -0.041667, 'London'),
+        ('5135b0010', 51.541667, -0.125000, 'London'),
         ('0540c0000', 5.625000, 0.041667, 'Prime meridian'),
     ]
     
@@ -115,14 +116,14 @@ def test_round_trip():
     print("Testing round-trip consistency")
     print("=" * 70)
     
-    # Use coordinates well within pentad cells (not near boundaries)
-    # to avoid naming convention edge cases
-    # Note: Some northern hemisphere coordinates may still have issues
-    # due to the +5' naming adjustment
+    # Exercise all hemispheres away from shared boundaries.
     test_coords = [
         (-25.04, 27.04, 'Pretoria (interior)'),
         (-0.04, 10.04, 'Equator (interior, southern)'),
         (-33.96, 18.46, 'Cape Town (interior)'),
+        (0.04, 10.04, 'North of equator'),
+        (51.52, -0.12, 'North/west'),
+        (-15.87, -5.62, 'South/west'),
     ]
     
     all_passed = True
