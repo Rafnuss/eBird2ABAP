@@ -7,7 +7,8 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from eBird2ABAP import (read_EBD, ebd2chk, chk2valid_card, valid_card2chk_card, chk_card2card_chk)
+from eBird2ABAP import (read_EBD, ebd2chk, chk2valid_card, valid_card2chk_card, chk_card2card_chk,
+                        generate_report)
 
 
 def source_rows(starts=('06:00:00', '07:00:00'), durations=(60, 60)):
@@ -126,7 +127,28 @@ class ChecklistEffortTests(unittest.TestCase):
         self.assertEqual(chk['CROSS PENTAD TIME CONFLICT'].tolist(), [True, True, False])
         self.assertEqual(chk['DURATION MINUTES'].tolist(), [60, 60, 60])
 
+    def test_empty_report_is_a_valid_zero_row_result(self):
+        source_rows().iloc[:0].to_csv(self.file, sep='\t', index=False)
+        summary = generate_report(self.file, self.root / 'empty', ebird_version='2025')
+        self.assertEqual(summary['rows_read'], 0)
+        self.assertEqual(summary['candidate_cards'], 0)
+        self.assertTrue((self.root / 'empty/index.html').exists())
 
+    def test_report_is_invariant_to_chunk_boundaries_and_labels_prefixes(self):
+        frame = source_rows(('06:00:00',) * 3, (120,) * 3)
+        frame['GROUP IDENTIFIER'] = 'G1'
+        frame = pd.concat([frame, frame], ignore_index=True)
+        frame.to_csv(self.file, sep='\t', index=False)
+        one = generate_report(self.file, self.root / 'small', ebird_version='2025', chunksize=1)
+        many = generate_report(self.file, self.root / 'large', ebird_version='2025', chunksize=100)
+        for key in ['independent_events', 'shared_events', 'candidate_cards', 'taxonomy_observation_counts']:
+            self.assertEqual(one[key], many[key])
+        self.assertEqual(one['raw_checklists'], 3)
+        self.assertEqual(one['independent_events'], 1)
+        self.assertEqual(one['taxonomy_observation_counts']['exact'], 6)
+        prefix = generate_report(self.file, self.root / 'prefix', ebird_version='2025', nrows=1)
+        self.assertEqual(prefix['scope'], 'prefix')
+        self.assertIn('PREFIX SAMPLE', (self.root / 'prefix/index.html').read_text())
 
 
 if __name__ == '__main__':

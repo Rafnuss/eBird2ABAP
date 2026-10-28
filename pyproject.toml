@@ -22,6 +22,7 @@ dependencies = [
 
 [dependency-groups]
 dev = ["ruff>=0.11,<1", "matplotlib>=3.8,<4", "openpyxl>=3.1,<4"]
+notebooks = ["ipykernel>=6,<8", "nbclient>=0.10,<1"]
 
 [project.urls]
 "Homepage" = "https://github.com/Rafnuss/eBird2ABAP"

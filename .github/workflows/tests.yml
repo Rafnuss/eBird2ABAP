@@ -1,0 +1,14 @@
+name: Research checks
+
+on: [push, pull_request]
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --group notebooks
+      - run: uv run python tests/run_all_tests.py
+      - run: uv run ruff check eBird2ABAP scripts tests
+      - run: uv run --group notebooks python tests/check_notebooks.py

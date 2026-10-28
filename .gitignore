@@ -16,3 +16,14 @@ build/*
 .venv/
 /proposal
 /data/interim
+
+# Local build artifacts and converter outputs
+dist/
+/*_cards.csv
+/*_records.csv
+
+# Raw snapshots of explicitly selected taxonomy sources
+/data/reference/taxonomy/
+
+# Local lint cache
+/.ruff_cache/
