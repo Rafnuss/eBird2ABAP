@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "updated_at_utc": "2026-10-28T19:12:37.209654+00:00",
+  "ebird_source_version": "2025",
+  "ebird_target_version": "2026",
+  "avilist_version": "2026",
+  "avilist_file": "AviList-v2026-20Oct2026-extended-version.xlsx",
+  "avilist_sha256": "df031d392b766673ce8a9eb37b8e57a91baabf9576b6b2bcfd6cf9aa4902797d",
+  "avilist_sheet": "AviList v2026",
+  "avilist_selection": "explicit workbook/version; freshness requires a successful separate website check",
+  "avilist_url": "https://www.avilist.org/checklist/v2026/",
+  "avilist_citation": "AviList Core Team. 2026. AviList: The Global Avian Checklist, v2026. https://doi.org/10.2173/avilist.v2026",
+  "avilist_license_statement": "AviList: The Global Avian Checklist \u00a9 2026 by AviList Core Team is licensed under CC BY 4.0",
+  "ebird_api": "https://api.ebird.org/v2/ref/taxonomy",
+  "source_api_sha256": "b305cc9b75a97e55159df1567156d5988bc437cdf52411af29e471d5142dcb55",
+  "target_api_sha256": "c0a2b412261c59f9abff9707bbf957a59163ca0e038b7dfee4b800df8517ebad",
+  "files": {
+    "ebird_avilist_mapping.csv": "4bff9db0aea6ecd3274e743c3e971b94cd52e37d176972caa696286f3ca48b94",
+    "avilist_reference.csv": "7c1add2f3b242f07582b988b0089a95ca1d992273c24429e0f47cb239d2a0089"
+  },
+  "source_taxa": 17891,
+  "avilist_species": 11172,
+  "reference_status_counts": {
+    "linked": 11081,
+    "source_ebird_not_species": 6724,
+    "no_published_avilist_link": 57,
+    "target_ebird_not_species": 19,
+    "code_absent_from_target_ebird": 10
+  },
+  "matching_rule": "Exact EBD scientific name/category in declared source API; published Cornell code in latest AviList/target eBird; exact EBD Avibase concept ID equality. No fallback."
+}
