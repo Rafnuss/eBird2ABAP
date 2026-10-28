@@ -4,7 +4,6 @@ The KML label 0540c0005 incorrectly denotes a western cell; test its logical
 ID 0540b0005 explicitly instead. See docs/pentad-kml-audit.md for provenance.
 """
 
-import numpy as np
 import pandas as pd
 
 from eBird2ABAP.pentad import pentad2polygon
@@ -108,7 +107,7 @@ def test_pentad2polygon_bounds():
         
         if not all_match:
             all_passed = False
-            print(f"  Differences:")
+            print("  Differences:")
             if not minx_match:
                 print(f"    minx: {actual[0] - expected[0]:+.6f}")
             if not miny_match:

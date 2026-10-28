@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
-import importlib.resources as pkg_resources
 
-# import json
 import os
 import datetime
 import gzip
@@ -11,13 +9,10 @@ from pathlib import Path
 import requests
 import tarfile
 
-# from tqdm.notebook import tqdm
-
-# import sys
-# import csv
-
-# Now import the necessary functions from pentad.py
 from .pentad import latlng2pentad, pentad2latlng
+from .checklists import EVENT_METADATA, collapse_shared_checklists, effort_by_day, qualifies_effort, cross_pentad_overlaps
+from pyproj import Geod
+from .taxonomy import add_avilist_taxonomy, load_taxonomy_bundle
 
 DEFAULT_EBD_DIR = Path("data") / "ebd"
 
@@ -54,16 +49,33 @@ def _resolve_EBD_file(file):
     raise FileNotFoundError(f"EBD file or directory does not exist: {path}")
 
 
-def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
+def ebird2abap(EBD_file, JSON_file=None, exportCSV=False, *,
+               observer_email=None, observer_no=None,
+               ebird_version=None, strict_taxonomy=True):
+    """Convert species-level EBD data, write exports, and return the card table.
+
+    JSON_file controls the output directory and basename of optional CSV files.
+    Receiving-account details remain unknown unless supplied explicitly.
+    """
     EBD_file = _resolve_EBD_file(EBD_file)
+    basename = os.path.basename(EBD_file).removesuffix(".txt.gz").removesuffix(".txt")
     print("Reading EBD file...")
-    ebd = read_EBD(EBD_file)
+    ebd, members = read_EBD(EBD_file, return_members=True)
 
-    print("Adding ADU number...")
-    ebd = add_ADU(ebd)
+    print("Adding AviList taxonomy...")
+    if JSON_file is None:
+        JSON_file = f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    JSON_file = Path(JSON_file)
+    ebd = add_avilist_taxonomy(
+        ebd, ebird_version=ebird_version, strict=strict_taxonomy,
+        report_dir=JSON_file.with_name(f"{JSON_file.stem}_taxonomy"),
+    )
 
+    report_dir = JSON_file.with_name(f"{JSON_file.stem}_taxonomy")
+    members.to_csv(report_dir / "checklist_members.csv", index=False)
     print("Computing checklists...")
     chk = ebd2chk(ebd)
+    chk.to_csv(report_dir / "checklist_quality.csv", index=False)
 
     print("Checking validity of cards...")
     card_valid = chk2valid_card(chk)
@@ -78,35 +90,26 @@ def ebird2abap(EBD_file, JSON_file=None, exportCSV=False):
     ebd_f_u = chk_card2ebd_f_u(ebd, chk_card)
 
     print("Converting EBD formatted units to card expressions...")
-    card_exp = ebd_f_u2card_exp(card_chk, ebd_f_u)
+    card_exp = ebd_f_u2card_exp(
+        card_chk, ebd_f_u, observer_email=observer_email, observer_no=observer_no
+    )
 
     print("Converting card expressions to JSON format...")
     json_data = card_exp.to_json(orient="records", indent=2)
 
-    if JSON_file is None:
-        basename = (
-            os.path.basename(EBD_file).removesuffix(".txt.gz").removesuffix(".txt")
-        )
-        JSON_file = (
-            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
-
+    JSON_file = Path(JSON_file)
+    JSON_file.parent.mkdir(parents=True, exist_ok=True)
     print(f"Writing JSON data to {JSON_file}...")
-    with open(JSON_file, "w") as f:
-        f.write(json_data)
+    JSON_file.write_text(json_data, encoding="utf-8")
 
     if exportCSV:
-        print(f"Writing CSV data...")
-        card_chk.to_csv(
-            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_cards.csv",
-            index=False,
-        )
-        ebd_f_u[["CARD", "ADU", "SEQ"]].to_csv(
-            f"{basename}_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}_records.csv",
-            index=False,
+        card_chk.to_csv(JSON_file.with_name(f"{JSON_file.stem}_cards.csv"), index=False)
+        ebd_f_u[["CARD", "AVIBASE ID", "SEQ"]].to_csv(
+            JSON_file.with_name(f"{JSON_file.stem}_records.csv"), index=False
         )
 
     print("Process completed successfully.")
+    return card_exp
 
 
 def download_EBD(year=None, month=None, output_dir=DEFAULT_EBD_DIR):
@@ -131,7 +134,7 @@ def download_EBD(year=None, month=None, output_dir=DEFAULT_EBD_DIR):
         filepath = os.path.join(output_dir, filename)
         print(f"Checking African EBD release {month}-{year}...", flush=True)
 
-        with requests.get(url, stream=True) as response:
+        with requests.get(url, stream=True, timeout=(30, 120)) as response:
             if response.status_code == 404 and i < len(candidates) - 1:
                 print("Not available; trying an older release.", flush=True)
                 continue
@@ -160,224 +163,101 @@ def download_EBD(year=None, month=None, output_dir=DEFAULT_EBD_DIR):
     extract_dir = os.path.join(output_dir, f"ebd_AFR_rel{month}-{year}")
     os.makedirs(extract_dir, exist_ok=True)
     with tarfile.open(filepath, "r") as tar:
-        tar.extractall(extract_dir)
+        tar.extractall(extract_dir, filter="data")
 
     return filepath
 
 
-def read_EBD(file, nrows=None):
+def iter_EBD(file, *, nrows=None, chunksize=100000):
+    """Yield raw normalized EBD chunks; shared groups are not collapsed per chunk."""
     file = _resolve_EBD_file(file)
-    columns = pd.read_csv(file, delimiter="\t", nrows=0).columns
-    protocol_column = (
-        "PROTOCOL TYPE" if "PROTOCOL TYPE" in columns else "PROTOCOL NAME"
-    )
-    ebd0 = pd.read_csv(
-        file,
-        delimiter="\t",
-        usecols=[
-            "SAMPLING EVENT IDENTIFIER",
-            "GROUP IDENTIFIER",
-            "SCIENTIFIC NAME",
-            "TAXON CONCEPT ID",
-            "CATEGORY",
-            "LATITUDE",
-            "LONGITUDE",
-            "OBSERVATION DATE",
-            "TIME OBSERVATIONS STARTED",
-            protocol_column,
-            "DURATION MINUTES",
-            "EFFORT DISTANCE KM",
-            "ALL SPECIES REPORTED",
-            "OBSERVER ID",
-        ],
-        parse_dates=["OBSERVATION DATE"],
-        nrows=nrows,  # Use this to read only a smaller portion of the file to run faster and test the code
-    )
-    if protocol_column != "PROTOCOL TYPE":
-        ebd0.rename(columns={protocol_column: "PROTOCOL TYPE"}, inplace=True)
-
-    ebd = ebd0
-
-    # Combine shared checklist: Overwrite sampling event identifier by the first one submitted (lower SXXXXXX value)
-    ebd["SAMPLING EVENT IDENTIFIER"] = (
-        ebd.groupby("GROUP IDENTIFIER")["SAMPLING EVENT IDENTIFIER"]
-        .transform("min")
-        .where(ebd["GROUP IDENTIFIER"].notna(), ebd["SAMPLING EVENT IDENTIFIER"])
-    )
-    # Drop the GROUP IDENTIFIER column
-    ebd = ebd.drop(columns="GROUP IDENTIFIER")
-
-    # Create OBSERVATIONDATETIME by combining date and time
-    tmp = ebd["TIME OBSERVATIONS STARTED"].fillna("00:00:00")
-    ebd["OBSERVATION DATETIME"] = pd.to_datetime(
-        ebd["OBSERVATION DATE"].dt.strftime("%Y-%m-%d") + " " + tmp,
-        format="%Y-%m-%d %H:%M:%S",
-    )
-
-    # Sort by date: Important to have for filtering duplicate card-adu and needed for sequence
-    ebd.sort_values(by="OBSERVATION DATETIME", inplace=True)
-
-    # Keep only species category
-    # ebd0[["COMMONNAME", "SCIENTIFIC NAME", "CATEGORY"]].drop_duplicates().to_csv("species_list_ebird.csv", index=False)
-
-    # Keep some spuh which can be matched to an ADU
-    # spuh_keep = pd.read_csv("data/spuh_keep.csv", dtype=str)
-    # ebd0 = ebd0[(~ebd0["CATEGORY"].isin(["spuh", "slash"])) | ebd0["SCIENTIFIC NAME"].isin(spuh_keep["Clements--scientific_name"])]
-
-    return ebd
-
-
-def load_matched_species():
-    with pkg_resources.files("eBird2ABAP").joinpath("matched_species.csv") as file_path:
-        print(file_path)
-        df = pd.read_csv(file_path)
-    return df
-
-
-def add_ADU(ebd, return_unmatched=False):
-    # Read matched_species data. See species_match.ipynb
-    matched_species = load_matched_species()
-
-    ebd = pd.merge(
-        ebd,  # .loc[:,['OBSERVER ID', 'PENTAD', "SAMPLING EVENT IDENTIFIER", "OBSERVATION DATE"]],
-        matched_species[["TAXON CONCEPT ID", "ADU"]].drop_duplicates(
-            subset="TAXON CONCEPT ID"
-        ),
-        how="left",
-    )
-
-    if return_unmatched:
-        unmatched = (
-            ebd[ebd["ADU"].isna()][["SCIENTIFIC NAME"]]
-            .value_counts()
-            .sort_values(ascending=0)
+    columns = pd.read_csv(file, sep="\t", nrows=0).columns
+    protocol_column = "PROTOCOL TYPE" if "PROTOCOL TYPE" in columns else "PROTOCOL NAME"
+    usecols = ["SAMPLING EVENT IDENTIFIER", "GROUP IDENTIFIER", "SCIENTIFIC NAME", "TAXON CONCEPT ID", "CATEGORY",
+               "LATITUDE", "LONGITUDE", "OBSERVATION DATE", "TIME OBSERVATIONS STARTED", protocol_column,
+               "DURATION MINUTES", "EFFORT DISTANCE KM", "ALL SPECIES REPORTED", "OBSERVER ID"]
+    for ebd in pd.read_csv(file, sep="\t", usecols=usecols, nrows=nrows, chunksize=chunksize):
+        ebd = ebd.rename(columns={protocol_column: "PROTOCOL TYPE"})
+        ebd["OBSERVATION DATE"] = pd.to_datetime(ebd["OBSERVATION DATE"]).dt.normalize()
+        ebd["DURATION MINUTES"] = ebd["DURATION MINUTES"].astype(float)
+        ebd["OBSERVATION DATETIME"] = pd.to_datetime(
+            ebd["OBSERVATION DATE"].dt.strftime("%Y-%m-%d") + " " + ebd["TIME OBSERVATIONS STARTED"],
+            format="%Y-%m-%d %H:%M:%S",
         )
-        print(
-            f"We still have {len(unmatched)} unmatched taxons, corresponding to {round(sum(unmatched)/len(ebd)*100)}% of our data"
-        )
-        return unmatched
-    else:
-        ebd["ADU"] = ebd["ADU"].fillna(0).astype(int)
-        return ebd
+        ebd["EVENT ID"] = ebd["GROUP IDENTIFIER"].astype("string").fillna(ebd["SAMPLING EVENT IDENTIFIER"].astype("string"))
+        yield ebd
+
+
+def read_EBD(file, nrows=None, *, return_members=False):
+    """Read EBD, collapse independent events by Avibase concept, retain member IDs.
+
+    ``return_members=True`` also returns the original checklist metadata table.
+    Missing start times remain unknown and cannot establish timed effort.
+    """
+    raw = pd.concat(iter_EBD(file, nrows=nrows), ignore_index=True)
+    ebd, members = collapse_shared_checklists(raw)
+    return (ebd, members) if return_members else ebd
+
+
+def load_avilist_mapping():
+    """Return the single checksummed active crosswalk."""
+    return load_taxonomy_bundle()[0]
 
 
 def ebd2chk(ebd):
-    chk = ebd[
-        [
-            "SAMPLING EVENT IDENTIFIER",
-            "LATITUDE",
-            "LONGITUDE",
-            "OBSERVATION DATE",
-            "OBSERVATION DATETIME",
-            "PROTOCOL TYPE",
-            "DURATION MINUTES",
-            "EFFORT DISTANCE KM",
-            "ALL SPECIES REPORTED",
-            "OBSERVER ID",
-        ]
-    ].drop_duplicates()
+    """One independent event, with an explicit conservative spatial screen.
 
-    # Sort by date
-    chk.sort_values(by="OBSERVATION DATETIME", inplace=True)
-
-    # For some shared checklist some variable are different for the same sampling event.
-    # chk[chk["SAMPLING EVENT IDENTIFIER"].duplicated(keep=False)].sort_values(by="SAMPLING EVENT IDENTIFIER")
-    # ebd0[ebd0["SAMPLING EVENT IDENTIFIER"] == "S97700871"]
-    chk = chk.drop_duplicates("SAMPLING EVENT IDENTIFIER").reset_index(drop=True)
-    len(chk)
-
-    # Filter protocol
-    chk["KEEP PROTOCOL"] = chk["PROTOCOL TYPE"].isin(
-        ["Historical", "Incidental", "Stationary", "Traveling"]
-    )
-
-    # Pentad
-    # Assign the pentad to all checklists based on their location
-    chk["PENTAD"] = latlng2pentad(chk["LATITUDE"], chk["LONGITUDE"])
-
-    # Retrieve the lat, lon center of the assigned pentad
-    lat, lon = pentad2latlng(chk["PENTAD"])
-
-    # Convert effort distance of the checklisst into degree lat-lon
-    effort_distance_lat = 180 / np.pi / 6371 * chk["EFFORT DISTANCE KM"]
-    effort_distance_lon = (
-        180
-        / np.pi
-        / 6371
-        / np.cos(np.radians(chk["LATITUDE"]))
-        * chk["EFFORT DISTANCE KM"]
-    )
-
-    # Compute the distance from the center of the pentad (lat,lon) to the max distance possible if the observer traveled in the worst possible direction (i.e., to the closest eadge of the pentad)
-    # We relax a little bit the assumption of moving on the straight line to the edge of the pentad by applying a correction factor
-    corr_straight_line = 0.8
-    dist_lat = np.abs(lat - chk["LATITUDE"]) + effort_distance_lat * corr_straight_line
-    dist_lon = np.abs(lon - chk["LONGITUDE"]) + effort_distance_lon * corr_straight_line
-
-    # The maximum distance allowed for the checklist to be considered valid is half of a pentad resolution (5/60°)
-    # We accept that the checklist might have traveled a bit more that this distance
-    corr_overlap = 1.2  # allow for a 20% overlap
-    max_dist = (5 / 60 / 2) * corr_overlap
-
-    chk["KEEP PENTAD"] = (dist_lat < max_dist) & (dist_lon < max_dist)
-
-    # Filter historical checklists which have no distance
-    chk.loc[
-        (chk["PROTOCOL TYPE"] == "Historical") & chk["EFFORT DISTANCE KM"].isna(),
-        "KEEP PENTAD",
-    ] = False
-
-    # Filter historical checklists which have no distance
-    chk.loc[
-        chk["EFFORT DISTANCE KM"].isna(),
-        "KEEP PENTAD",
-    ] = True
-
-    chk.loc[
-        (chk["PROTOCOL TYPE"] == "Historical") & chk["EFFORT DISTANCE KM"].isna(),
-        "KEEP PENTAD",
-    ] = False
-
+    Stationary uses the protocol's 30 m movement allowance. Other protocols
+    require a known distance. Distance is a screening radius, not track proof
+    or GPS accuracy; the selected eBird location may not be the route start.
+    """
+    columns = ["SAMPLING EVENT IDENTIFIER", "OBSERVER ID", *EVENT_METADATA,
+               "EVENT ID", "GROUP IDENTIFIER", "SOURCE CHECKLIST IDS", "SOURCE OBSERVER IDS", "SHARED METADATA CONFLICT"]
+    chk = ebd[columns].drop_duplicates("SAMPLING EVENT IDENTIFIER").sort_values("OBSERVATION DATETIME", kind="stable").reset_index(drop=True)
+    chk["KEEP PROTOCOL"] = chk["PROTOCOL TYPE"].isin(["Stationary", "Traveling"])
+    chk["PENTAD"] = pd.Series(latlng2pentad(chk["LATITUDE"], chk["LONGITUDE"]), dtype=str)
+    lat, lng = pentad2latlng(chk["PENTAD"])
+    north, south = np.array(lat) + 1/24, np.array(lat) - 1/24
+    west, east = np.array(lng) - 1/24, np.array(lng) + 1/24
+    geod = Geod(ellps="WGS84")
+    edge_distances = [
+        geod.inv(chk["LONGITUDE"].to_numpy(), chk["LATITUDE"].to_numpy(), chk["LONGITUDE"].to_numpy(), edge)[2]
+        for edge in [north, south]
+    ] + [
+        geod.inv(chk["LONGITUDE"].to_numpy(), chk["LATITUDE"].to_numpy(), edge, chk["LATITUDE"].to_numpy())[2]
+        for edge in [west, east]
+    ]
+    chk["EDGE DISTANCE M"] = np.min(edge_distances, axis=0)
+    radius = chk["EFFORT DISTANCE KM"] * 1000
+    radius = radius.where(chk["PROTOCOL TYPE"].ne("Stationary"), np.maximum(radius.fillna(0), 30.0))
+    chk["SPATIAL STATUS"] = np.where(radius.isna(), "unknown_distance",
+                                     np.where(radius.le(chk["EDGE DISTANCE M"]), "screen_pass", "possible_boundary_crossing"))
+    chk["KEEP PENTAD"] = chk["SPATIAL STATUS"].eq("screen_pass") & ~chk["SHARED METADATA CONFLICT"]
+    chk["QUALIFIES EFFORT"] = qualifies_effort(chk)
+    chk["CROSS PENTAD TIME CONFLICT"] = cross_pentad_overlaps(chk)
     return chk
 
 
 def chk2valid_card(chk):
-    # Find all possible valid card
-    # Cards are considered to be full protocol if the sum of durations of the underlying checklists exceed 2 hours over the next rolling 5 days.
-    # In this section, we first indentify which checklists can create a valid full card.
+    # Non-overlapping elapsed effort, split across calendar dates.
+    checkday = effort_by_day(chk, ["PENTAD", "OBSERVER ID"])
+    if checkday.empty:
+        return checkday[["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].assign(CARD=pd.Series(dtype=str))
 
-    # Find the index of all checklists which contribute to the 2hr rule. Note that we will still use "non-valid" checklists later as their species still contribute to the card.
-    valid_id = (
-        chk["KEEP PENTAD"]
-        & chk["KEEP PROTOCOL"]
-        & (chk["DURATION MINUTES"] > 0)
-        & chk["ALL SPECIES REPORTED"].eq(1)
-    )
-
-    # Filter for valid checklist and create in a smaller table
-    check = chk.loc[
-        valid_id, ["PENTAD", "OBSERVER ID", "OBSERVATION DATE", "DURATION MINUTES"]
-    ]
-
-    if check.empty:
-        return check[["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].assign(CARD=pd.Series(dtype=str))
-
-    # Combine checklists made by the same observer, pentad, and day. This is an intermediate step which enables us to grid the 5 days windows more easily
-    checkday = (
-        check.groupby(["PENTAD", "OBSERVER ID", "OBSERVATION DATE"])
-        .agg({"DURATION MINUTES": "sum"})
-        .reset_index()
-    )
+    starts = chk.loc[qualifies_effort(chk), ["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].drop_duplicates()
+    starts["CAN START CARD"] = True
+    checkday = checkday.merge(starts, how="left", on=["PENTAD", "OBSERVER ID", "OBSERVATION DATE"])
+    checkday["CAN START CARD"] = checkday["CAN START CARD"].eq(True)
 
     # Sort the checklist by date
-    checkday.sort_values(by=["OBSERVATION DATE"], inplace=True)
+    checkday = checkday.sort_values(by=["OBSERVATION DATE"], kind="stable")
 
     # Create additional columns
     checkday["pentad_observer"] = checkday["PENTAD"] + "_" + checkday["OBSERVER ID"]
     checkday["pentad_observer_date"] = (
         checkday["PENTAD"]
         + "_"
-        + checkday["OBSERVER ID"].str[3:]
+        + checkday["OBSERVER ID"]
         + "_"
         + checkday["OBSERVATION DATE"].dt.strftime("%Y%m%d")
     )
@@ -392,11 +272,6 @@ def chk2valid_card(chk):
     checkday_long = checkday[
         checkday["pentad_observer"].isin(pentad_observer_duration_index)
     ]
-
-    # Second filter for reducing the test case
-    # pentad_observer_unique = checkday_long["pentad_observer"].unique()
-    # pentad_observer_unique = pentad_observer_unique[0:1000]
-    # checkday_long = checkday_long[checkday_long["pentad_observer"].isin(pentad_observer_unique)]
 
     if checkday_long.empty:
         return checkday_long[["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].assign(CARD=pd.Series(dtype=str))
@@ -414,7 +289,7 @@ def chk2valid_card(chk):
     ][["PENTAD", "OBSERVER ID", "OBSERVATION DATE", "CARD"]]
 
     # Sort by card
-    card_valid.sort_values(by="CARD", inplace=True)
+    card_valid = card_valid.sort_values(by="CARD", kind="stable")
 
     return card_valid
 
@@ -434,6 +309,9 @@ def checkday_pentad_observer(df):
     start = 0
     while start < len(df):
         end = ends[start]
+        if "CAN START CARD" in df and not df.iloc[start]["CAN START CARD"]:
+            start += 1
+            continue
         if effort[end] - effort[start] >= 120:
             df.iloc[start:end, df.columns.get_loc("CARD")] = df.iloc[start]["pentad_observer_date"]
             start = end
@@ -469,31 +347,50 @@ def valid_card2chk_card(chk, card_valid):
     duration = (
         chk_card["OBSERVATION DATE_chk"] - chk_card["OBSERVATION DATE_card"]
     ).dt.days
-    chk_card = chk_card[(duration >= 0) & (duration < 5)]
-
+    chk_card = chk_card[(duration >= 0) & (duration < 5)].copy()
+    stop = chk_card["OBSERVATION DATE_card"] + pd.Timedelta(days=5)
+    reported_end = chk_card["OBSERVATION DATETIME"] + pd.to_timedelta(chk_card["DURATION MINUTES"], unit="m")
+    clipped = reported_end.gt(stop)
+    chk_card.loc[clipped, "DURATION MINUTES"] = (stop[clipped] - chk_card.loc[clipped, "OBSERVATION DATETIME"]).dt.total_seconds() / 60
+    chk_card.loc[clipped & chk_card["EFFORT DISTANCE KM"].ne(0), "EFFORT DISTANCE KM"] = np.nan
     return chk_card
 
 
+def _unique_members(values):
+    """Flatten event memberships without assigning individual participation effort."""
+    return sorted({member for group in values for member in group})
+
+
 def chk_card2card_chk(chk_card, card_valid):
-
-    # Cretate the card list with all checklists that belong to it. Compute aggregated value of all checklists
-    card_chk = (
-        chk_card.groupby("CARD")
-        .agg(
-            {
-                "SAMPLING EVENT IDENTIFIER": list,
-                "OBSERVATION DATETIME": ["min", "max"],
-                "DURATION MINUTES": "sum",
-                "EFFORT DISTANCE KM": "sum",
-            }
-        )
-        .reset_index()
-    )
-    card_chk.columns = ["_".join(col).strip("_") for col in card_chk.columns.values]
-
-    # merge with the information contained in card_valid
-    card_chk = pd.merge(card_chk, card_valid, on="CARD", how="inner")
-
+    """Aggregate card metadata; only qualifying interval union counts as effort."""
+    card_chk = chk_card.groupby("CARD").agg(**{
+        "SAMPLING EVENT IDENTIFIER_list": ("SAMPLING EVENT IDENTIFIER", list),
+        "SOURCE CHECKLIST IDS": ("SOURCE CHECKLIST IDS", _unique_members),
+        "SOURCE OBSERVER IDS": ("SOURCE OBSERVER IDS", _unique_members),
+        "EVENT IDS": ("EVENT ID", list),
+        "OBSERVATION DATETIME_min": ("OBSERVATION DATETIME", "min"),
+    }).reset_index()
+    daily = effort_by_day(chk_card, ["CARD"])
+    daily = daily.merge(card_valid[["CARD", "OBSERVATION DATE"]], on="CARD", suffixes=("", "_start"))
+    daily = daily.loc[(daily["OBSERVATION DATE"] >= daily["OBSERVATION DATE_start"])
+                      & (daily["OBSERVATION DATE"] < daily["OBSERVATION DATE_start"] + pd.Timedelta(days=5))]
+    durations = daily.groupby("CARD")["DURATION MINUTES"].sum().rename("DURATION MINUTES_sum")
+    qualified = chk_card.loc[qualifies_effort(chk_card)].copy()
+    qualified["EFFORT END"] = qualified["OBSERVATION DATETIME"] + pd.to_timedelta(qualified["DURATION MINUTES"], unit="m")
+    ends = qualified.groupby("CARD")["EFFORT END"].max().rename("OBSERVATION DATETIME_max")
+    # Any missing distance makes the full total unknown, rather than a partial sum.
+    distances = qualified.groupby("CARD")["EFFORT DISTANCE KM"].agg(lambda values: values.sum() if values.notna().all() else np.nan).rename("EFFORT DISTANCE KM_sum")
+    # Overlapping route distances cannot be corrected from clocks alone.
+    naive = qualified.groupby("CARD")["DURATION MINUTES"].sum()
+    overlap = naive.sub(durations).clip(lower=0).rename("OVERLAP MINUTES REMOVED")
+    distances.loc[overlap.gt(0) & distances.ne(0)] = np.nan
+    card_chk = card_chk.merge(durations, on="CARD").merge(ends, on="CARD").merge(distances, on="CARD").merge(overlap, on="CARD")
+    card_chk = card_chk.merge(card_valid, on="CARD", validate="one_to_one")
+    last_start = chk_card.groupby("CARD")["OBSERVATION DATETIME"].max()
+    card_chk["OBSERVATION DATETIME_max"] = pd.concat([card_chk.set_index("CARD")["OBSERVATION DATETIME_max"], last_start], axis=1).max(axis=1).reindex(card_chk["CARD"]).to_numpy()
+    card_chk["OBSERVATION DATETIME_max"] = card_chk["OBSERVATION DATETIME_max"].where(
+        card_chk["OBSERVATION DATETIME_max"] < card_chk["OBSERVATION DATE"] + pd.Timedelta(days=5),
+        card_chk["OBSERVATION DATE"] + pd.Timedelta(days=5) - pd.Timedelta(microseconds=1))
     return card_chk
 
 
@@ -505,7 +402,13 @@ def chk_card2ebd_f_u(ebd, chk_card):
             "SAMPLING EVENT IDENTIFIER",
             "SCIENTIFIC NAME",
             "TAXON CONCEPT ID",
-            "ADU",
+            "AVIBASE ID",
+            "AVILIST COMMON NAME",
+            "AVILIST SCIENTIFIC NAME",
+            "AVILIST MATCH",
+            "AVILIST VERSION",
+            "EBIRD TAXONOMY VERSION",
+            "TARGET EBIRD TAXONOMY VERSION",
             "OBSERVATION DATETIME",
             "LATITUDE",
             "LONGITUDE",
@@ -513,7 +416,7 @@ def chk_card2ebd_f_u(ebd, chk_card):
         ],
     ]
 
-    # Add card_id
+    # Attach the card key.
     ebd_f = pd.merge(
         ebd_f,
         chk_card.loc[:, ["SAMPLING EVENT IDENTIFIER", "CARD"]],
@@ -521,48 +424,45 @@ def chk_card2ebd_f_u(ebd, chk_card):
         how="left",
     )
 
-    # Keep a unique list of card-species (remove duplicate species in the same card, keeping the first one in time)
-    ebd_f.sort_values(
-        by="OBSERVATION DATETIME", inplace=True
-    )  # SHould have been done already above, but necessary for keep="first"
+    # Keep unresolved concepts under their original keys; never group them
+    # under a missing ID or infer a parent species from their names.
+    if ebd_f["AVIBASE ID"].isna().any():
+        raise ValueError("Cannot export observations with missing Avibase concept IDs; inspect the taxonomy report")
+
+    # Deduplicate by source concept, not scientific-name spelling.
+    ebd_f = ebd_f.sort_values("OBSERVATION DATETIME", kind="stable")
 
     ebd_f_u = ebd_f.drop_duplicates(
-        subset=["CARD", "TAXON CONCEPT ID"], keep="first"
+        subset=["CARD", "AVIBASE ID"], keep="first"
     ).copy()
-    ebd_f_u.reset_index(drop=True, inplace=True)
+    ebd_f_u = ebd_f_u.reset_index(drop=True)
 
-    # Compute the sequence of records based on datetime entry
-    # ebd_f_u["SEQ"] = (
-    #    ebd_f_u.groupby("CARD")["OBSERVATION DATETIME"].rank(method="min").astype(int)
-    # )
-
-    # Compute the sequence basd on taxonomical order
-    ebd_f_u["SEQ"] = (
-        ebd_f_u.groupby("CARD")["TAXON CONCEPT ID"]
-        .rank(method="min")
-        .fillna(-1)
-        .astype(int)
-    )
-
-    # Not sure why, but fillina NA by nothing
-    ebd_f_u["EFFORT DISTANCE KM"] = ebd_f_u["EFFORT DISTANCE KM"].fillna("")
+    ebd_f_u["SEQ"] = ebd_f_u.groupby("CARD").cumcount() + 1
 
     # Convert datetime to standard format
     ebd_f_u["OBSERVATION DATETIME"] = ebd_f_u["OBSERVATION DATETIME"].dt.strftime(
-        "%Y-%m-%dT%H:%M:%SZ"
+        "%Y-%m-%dT%H:%M:%S"
     )
 
     return ebd_f_u
 
 
-def ebd_f_u2card_exp(card_chk, ebd_f_u):
+def ebd_f_u2card_exp(card_chk, ebd_f_u, *,
+                    observer_email=None, observer_no=None):
+    """Format resolved species and card metadata; times remain local and timezone-naive."""
 
     # Extract the species list per card as a cell for vectorized computation
     card_sp = (
         ebd_f_u.groupby("CARD")[
             [
-                "TAXON CONCEPT ID",
-                "ADU",
+                "SCIENTIFIC NAME",
+                "AVIBASE ID",
+                "AVILIST COMMON NAME",
+                "AVILIST SCIENTIFIC NAME",
+                "AVILIST MATCH",
+                "AVILIST VERSION",
+                "EBIRD TAXONOMY VERSION",
+                "TARGET EBIRD TAXONOMY VERSION",
                 "SEQ",
                 "LATITUDE",
                 "LONGITUDE",
@@ -583,8 +483,10 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
 
     # Set some default values
     card_exp["Protocol"] = "F"
-    card_exp["ObserverEmail"] = "kenyabirdmap@naturekenya.org"
-    card_exp["ObserverNo"] = "22829"
+    card_exp["ValidationStatus"] = "candidate"
+    card_exp["SpatialValidation"] = "screen_only"
+    card_exp["ObserverEmail"] = observer_email
+    card_exp["ObserverNo"] = None if observer_no is None else str(observer_no)
 
     card_exp["Hour1"] = ""
     card_exp["Hour2"] = ""
@@ -596,60 +498,86 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
     card_exp["Hour8"] = ""
     card_exp["Hour9"] = ""
     card_exp["Hour10"] = ""
-    card_exp["InclNight"] = "0"
-    card_exp["AllHabitats"] = "0"
+    card_exp["InclNight"] = None
+    card_exp["AllHabitats"] = None
 
     card_exp["TotalHours"] = round(card_exp["DURATION MINUTES_sum"] / 60, 2)
     card_exp["TotalDistance"] = round(card_exp["EFFORT DISTANCE KM_sum"], 2)
-    card_exp["TotalSpp"] = card_exp["ADU"].apply(lambda x: len(x))
+    card_exp["TotalSpp"] = card_exp["AVIBASE ID"].apply(lambda x: len(x))
     card_exp["StartDate"] = card_exp["OBSERVATION DATETIME_min"].dt.date.apply(str)
     card_exp["EndDate"] = card_exp["OBSERVATION DATETIME_max"].dt.date.apply(str)
     card_exp["StartTime"] = card_exp["OBSERVATION DATETIME_min"].dt.strftime("%H:%M")
 
     # Function that generate species record to be used for each species of each card
     def create_records(
-        TAXON_CONCEPT_ID,
-        ADU,
+        SCIENTIFIC_NAME,
+        AVIBASE_ID,
+        AVILIST_COMMON_NAME,
+        AVILIST_SCIENTIFIC_NAME,
         SEQ,
         LATITUDE,
         LONGITUDE,
         OBSERVATION_DATETIME,
         EFFORT_DISTANCE_KM,
+        TAXONOMY_STATUS,
+        AVILIST_VERSION,
+        EBIRD_SOURCE_VERSION,
+        EBIRD_TARGET_VERSION,
         CARD,
     ):
         return [
             {
-                "Sequence": SEQ,
+                "Sequence": None,
+                "RecordIndex": SEQ,
+                "SightingTimeBasis": "checklist_start",
                 "Latitude": LATITUDE,
                 "Longitude": LONGITUDE,
                 "Altitude": "",
                 "CardNo": CARD,
-                "Spp": ADU,
-                "SourceSpp": TAXON_CONCEPT_ID,
-                "Accuracy": EFFORT_DISTANCE_KM * 1000,
+                "Spp": AVIBASE_ID,
+                "SourceSpp": SCIENTIFIC_NAME,
+                "CommonName": AVILIST_COMMON_NAME,
+                "ScientificName": AVILIST_SCIENTIFIC_NAME,
+                "TaxonomyStatus": TAXONOMY_STATUS,
+                "AviListVersion": AVILIST_VERSION,
+                "eBirdSourceTaxonomyVersion": EBIRD_SOURCE_VERSION,
+                "eBirdTargetTaxonomyVersion": EBIRD_TARGET_VERSION,
+                "Accuracy": None,
                 "SightingTime": OBSERVATION_DATETIME,
             }
-            for TAXON_CONCEPT_ID, ADU, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM in zip(
-                TAXON_CONCEPT_ID,
-                ADU,
+            for SCIENTIFIC_NAME, AVIBASE_ID, AVILIST_COMMON_NAME, AVILIST_SCIENTIFIC_NAME, SEQ, LATITUDE, LONGITUDE, OBSERVATION_DATETIME, EFFORT_DISTANCE_KM, TAXONOMY_STATUS, AVILIST_VERSION, EBIRD_SOURCE_VERSION, EBIRD_TARGET_VERSION in zip(
+                SCIENTIFIC_NAME,
+                AVIBASE_ID,
+                AVILIST_COMMON_NAME,
+                AVILIST_SCIENTIFIC_NAME,
                 SEQ,
                 LATITUDE,
                 LONGITUDE,
                 OBSERVATION_DATETIME,
                 EFFORT_DISTANCE_KM,
+                TAXONOMY_STATUS,
+                AVILIST_VERSION,
+                EBIRD_SOURCE_VERSION,
+                EBIRD_TARGET_VERSION,
             )
         ]
 
     # Apply the function
-    card_exp["records"] = card_exp.apply(
+    card_exp["records"] = pd.Series(dtype=object) if card_exp.empty else card_exp.apply(
         lambda row: create_records(
-            row["TAXON CONCEPT ID"],
-            row["ADU"],
+            row["SCIENTIFIC NAME"],
+            row["AVIBASE ID"],
+            row["AVILIST COMMON NAME"],
+            row["AVILIST SCIENTIFIC NAME"],
             row["SEQ"],
             row["LATITUDE"],
             row["LONGITUDE"],
             row["OBSERVATION DATETIME"],
             row["EFFORT DISTANCE KM"],
+            row["AVILIST MATCH"],
+            row["AVILIST VERSION"],
+            row["EBIRD TAXONOMY VERSION"],
+            row["TARGET EBIRD TAXONOMY VERSION"],
             row["CARD"],
         ),
         axis=1,
@@ -663,12 +591,22 @@ def ebd_f_u2card_exp(card_chk, ebd_f_u):
             "SAMPLING EVENT IDENTIFIER": "Checklists",
             "OBSERVER ID": "ObserverNoEbird",
             "SAMPLING EVENT IDENTIFIER_list": "Checklists",
+            "SOURCE CHECKLIST IDS": "SourceChecklists",
+            "SOURCE OBSERVER IDS": "SourceObservers",
+            "EVENT IDS": "Events",
+            "OVERLAP MINUTES REMOVED": "OverlapMinutesRemoved",
         }
     )
 
     card_exp = card_exp.reindex(
         columns=[
             "Protocol",
+            "ValidationStatus",
+            "SpatialValidation",
+            "SourceChecklists",
+            "SourceObservers",
+            "Events",
+            "OverlapMinutesRemoved",
             "ObserverEmail",
             "CardNo",
             "StartDate",

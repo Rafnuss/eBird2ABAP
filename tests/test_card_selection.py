@@ -13,6 +13,8 @@ def checklists(durations, dates):
         'PENTAD': ['2500_2700'] * len(durations),
         'OBSERVER ID': ['obs1'] * len(durations),
         'OBSERVATION DATE': pd.to_datetime(dates),
+        'OBSERVATION DATETIME': pd.to_datetime(dates) + pd.Timedelta(hours=6),
+        'SHARED METADATA CONFLICT': False,
         'DURATION MINUTES': durations,
         'KEEP PENTAD': True,
         'KEEP PROTOCOL': True,
