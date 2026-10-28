@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.5.0.dev0 — unreleased development
+## 0.5.0 — 28 October 2026
+
+Local research checkpoint; no PyPI publication or remote push.
 
 ### Changed
 
@@ -9,7 +11,7 @@
 - Count only complete Stationary/Traveling effort, union overlapping timers, split midnight crossings, clip five-day endpoints, and normalize imported date fields to calendar days. Supplementary observations do not inflate effort.
 - Preserve unknown distance, accuracy, nocturnal effort, habitat coverage, detection sequence, and receiving-account details. Add candidate-validation markers and separate stable record indexes from biological detection order.
 - Retain and update all seven research notebooks to current functions, with explicit source versions, synthetic offline defaults, and opt-in exports. Preserve older explorations in the archive. Keep a local HTML/CSV quality report with source hashes and diagnostics; simplify documentation to the README and three working notes. Remove Sphinx, Pages, installed CLI, and publishing machinery.
-- Keep one locked research environment, explicit Python exports, basic linting, and scientific regression tests. Keep 0.5.0.dev0 as an analysis version marker, without public-release automation.
+- Keep one locked research environment, explicit Python exports, basic linting, and scientific regression tests. Use 0.5.0 as an analysis version marker, without public-release automation.
 
 ### Compatibility
 

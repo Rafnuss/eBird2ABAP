@@ -36,3 +36,5 @@ uv run ruff check eBird2ABAP scripts tests
 Tests use synthetic input, deterministic random coordinates, mocked network failures, and no private observations. A real-data report is a useful additional check, not proof that the unresolved items above have disappeared.
 
 The earlier v0.4 bug-fix commits remain `48c8265` (pentads) and `1d3f377` (card windows). Current work is local research development, with no automatic publishing or public report upload.
+
+Version `0.5.0` is the local research checkpoint containing these behaviors and notebook updates. The unresolved scientific inputs above remain open; a version tag does not establish server acceptance or resolve source ambiguity.

@@ -96,4 +96,4 @@ Existing proposal/reference/data files are retained. No new application or site 
 uv run ruff check eBird2ABAP scripts tests
 ```
 
-The two v0.4 bug fixes are committed separately. Current metadata remains `0.5.0.dev0` to identify the changed analysis behavior; it does not imply a public release. No report or package is automatically uploaded.
+The two v0.4 bug fixes are committed separately. Version `0.5.0` identifies this reproducible local research checkpoint; it is not an operational ABAP submission release. No report or package is automatically uploaded.
