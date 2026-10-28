@@ -35,9 +35,11 @@ The checklist table also stores protocol and completeness flags. The protocols t
 
 `chk2valid_card()` first selects checklists that can establish a card. A qualifying checklist must be spatially valid, use an allowed protocol, have `DURATION MINUTES > 0`, and have `ALL SPECIES REPORTED = 1`.
 
-Qualifying effort is summed by pentad, observer, and calendar date into `checkday`. Observer/pentad combinations with less than 120 minutes in total are discarded early. For each remaining observer/pentad, `checkday_pentad_observer()` examines dates less than five days apart and creates a card when the contiguous qualifying group totals at least 120 minutes.
+Qualifying effort is summed by pentad, observer, and calendar date into `checkday`. Observer/pentad combinations with less than 120 minutes in total are discarded early. For each remaining group, the converter evaluates a forward interval `[start date, start date + 5 days)`. Exactly 120 minutes qualifies; a checklist on day six does not belong to that window.
 
-The implementation is worth stating precisely: it walks the sorted qualifying dates from the first unprocessed date, assigns a card to the neighbouring dates that are fewer than five days from it, then moves on. It is therefore a sequential grouping rule, rather than evaluating every possible rolling five-day interval. The card identifier is based on pentad, observer, and the first date of the qualifying group.
+When a window qualifies, all its qualifying dates are assigned to that card and the next window starts after it. When it fails, the next observed date is tested. Cards therefore do not overlap for a given observer/pentad. This fixes an earlier implementation that skipped all dates in failed windows and missed valid later cards. For example, 10 minutes on January 1 followed by 60 minutes each on January 5 and 6 now creates a card beginning January 5.
+
+Window endpoints use sorted-date searches and cumulative effort rather than an all-pairs date matrix. No qualifying effort returns an empty card-selection table with the usual columns.
 
 ### 5. Attach the checklists that belong to each card
 

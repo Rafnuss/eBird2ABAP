@@ -351,13 +351,16 @@ def chk2valid_card(chk):
         chk["KEEP PENTAD"]
         & chk["KEEP PROTOCOL"]
         & (chk["DURATION MINUTES"] > 0)
-        & chk["ALL SPECIES REPORTED"]
+        & chk["ALL SPECIES REPORTED"].eq(1)
     )
 
     # Filter for valid checklist and create in a smaller table
     check = chk.loc[
         valid_id, ["PENTAD", "OBSERVER ID", "OBSERVATION DATE", "DURATION MINUTES"]
     ]
+
+    if check.empty:
+        return check[["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].assign(CARD=pd.Series(dtype=str))
 
     # Combine checklists made by the same observer, pentad, and day. This is an intermediate step which enables us to grid the 5 days windows more easily
     checkday = (
@@ -395,7 +398,10 @@ def chk2valid_card(chk):
     # pentad_observer_unique = pentad_observer_unique[0:1000]
     # checkday_long = checkday_long[checkday_long["pentad_observer"].isin(pentad_observer_unique)]
 
-    # Apply the function defined above for each pentad-observer at the same time (makes operation much faster)
+    if checkday_long.empty:
+        return checkday_long[["PENTAD", "OBSERVER ID", "OBSERVATION DATE"]].assign(CARD=pd.Series(dtype=str))
+
+    # Apply the date-window rule separately for each pentad and observer.
     checkday_long_card = (
         checkday_long.groupby("pentad_observer")
         .apply(checkday_pentad_observer, include_groups=False)
@@ -415,28 +421,24 @@ def chk2valid_card(chk):
 
 # To find all pentad with sufficient duration effort (i.e, a sum of 2h over 5 days period), we apply this function for each pentad_observer.
 def checkday_pentad_observer(df):
+    """Select chronological, non-overlapping cards with 120 minutes in five days.
+
+    Failed windows advance one date; successful windows consume all their dates.
+    Searchsorted and cumulative effort avoid an n-by-n date-distance matrix.
+    """
+    df = df.sort_values("OBSERVATION DATE").copy()
     df["CARD"] = ""
-    # Build a matrix of distance between all checklists to check if they are close to each other
-    di = np.abs(
-        df["OBSERVATION DATE"].values[:, None] - df["OBSERVATION DATE"].values
-    ) < pd.Timedelta(days=5)
-    # create duration array to make computation slightly faster
-    duration = df["DURATION MINUTES"].to_numpy()
-    # Initie the card array with empty string
-    # card = np.array(['' for x in range(len(df))], dtype='object')
-    u = 1
-    # Loop trough the list of checklists
-    while u <= len(df):
-        # Find all neighbord
-        nb_neighbor = np.sum(di[u - 1, (u - 1) :])
-        neigh = u + np.arange(0, nb_neighbor) - 1
-        dur = duration[neigh].sum()
-        # Check that total duration is more than 2hours, if so add card code (pentad_observer_date) to card array
-        if dur >= (2 * 60):
-            df.iloc[neigh, df.columns.get_loc("CARD")] = df.iloc[
-                u - 1, df.columns.get_loc("pentad_observer_date")
-            ]
-        u += nb_neighbor
+    dates = df["OBSERVATION DATE"].to_numpy()
+    ends = np.searchsorted(dates, dates + np.timedelta64(5, "D"))
+    effort = np.concatenate(([0], df["DURATION MINUTES"].to_numpy().cumsum()))
+    start = 0
+    while start < len(df):
+        end = ends[start]
+        if effort[end] - effort[start] >= 120:
+            df.iloc[start:end, df.columns.get_loc("CARD")] = df.iloc[start]["pentad_observer_date"]
+            start = end
+        else:
+            start += 1
     return df
 
 
